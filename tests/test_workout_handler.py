@@ -1,5 +1,6 @@
 import asyncio
 import unittest
+from unittest.mock import AsyncMock, patch
 
 from handlers import workouts
 
@@ -49,6 +50,20 @@ class WorkoutHandlerTests(unittest.TestCase):
         handlers = workouts.router.message.handlers
 
         self.assertEqual(len(handlers), 1)
+
+    def test_welcome_callback_delegates_to_active_workout_handler(self):
+        from bot_legacy import welcome_workout
+
+        message = _Message()
+        callback = type("Callback", (), {
+            "message": message,
+            "answer": AsyncMock(),
+        })()
+        with patch("handlers.workouts.workout", new=AsyncMock()) as active_workout:
+            asyncio.run(welcome_workout(callback))
+
+        callback.answer.assert_awaited_once_with()
+        active_workout.assert_awaited_once_with(message)
 
 
 if __name__ == "__main__":

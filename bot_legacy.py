@@ -2195,7 +2195,11 @@ async def help_command(message: Message):
 @dp.callback_query(F.data == "welcome_workout")
 async def welcome_workout(callback: CallbackQuery):
     await callback.answer()
-    await workout(callback.message)
+    # ``workout`` was moved to handlers.workouts during the split. Importing
+    # it at module scope would create a cycle: bot.py imports bot_legacy first
+    # and only then configures/includes the new routers.
+    from handlers.workouts import workout as start_workout
+    await start_workout(callback.message)
 
 
 @dp.callback_query(F.data == "welcome_help")
