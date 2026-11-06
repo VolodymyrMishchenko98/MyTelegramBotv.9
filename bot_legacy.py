@@ -40,6 +40,7 @@ from daily_tasks import DAILY_TASKS, DEFAULT_DAILY_TASK_ID
 # ── thin third-party / local ────────────────────────────────────────────────
 from services.logging_config import get_logger
 from services.workout_stats import summarize_workouts
+from services.workout_service import save_workout_session
 from game_config import (
     WORKOUT_XP_REWARD, DAILY_TASK_XP_REWARD, SUGGESTED_WORKOUT_XP, CHALLENGE_XP_REWARD,
     WORKOUT_COIN_REWARD, SUGGESTED_WORKOUT_REWARD, CHALLENGE_COIN_REWARD,
@@ -3122,19 +3123,7 @@ async def _save_workout_with_note(
     """
     uid = user_id
     today = datetime.now().strftime("%Y-%m-%d")
-    db = get_db(); cur = db.cursor()
-    try:
-        cur.execute("BEGIN IMMEDIATE")
-        cur.execute("INSERT INTO workout_sessions (user_id, date, note) VALUES (?, ?, ?)", (uid, today, note))
-        session_id = cur.lastrowid
-        for exercise in exercises:
-            cur.execute("INSERT INTO workouts (user_id, text, date, session_id) VALUES (?, ?, ?, ?)", (uid, exercise, today, session_id))
-        db.commit()
-    except Exception:
-        db.rollback()
-        db.close()
-        raise
-    db.close()
+    session_id = save_workout_session(uid, exercises, note, today)
     verify_db = get_db(); verify_cur = verify_db.cursor()
     verify_cur.execute("SELECT COUNT(*) FROM workout_sessions WHERE user_id=?", (uid,))
     session_count = verify_cur.fetchone()[0]
