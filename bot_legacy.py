@@ -1991,6 +1991,9 @@ def import_user_data(user_id: int, data: dict) -> tuple[bool, str]:
         cur.execute("PRAGMA table_info(coin_rewards)")
         if not any(row[1] == "idem_key" for row in cur.fetchall()):
             cur.execute("ALTER TABLE coin_rewards ADD COLUMN idem_key TEXT")
+        cur.execute("PRAGMA table_info(users)")
+        if not any(row[1] == "deleted_at" for row in cur.fetchall()):
+            cur.execute("ALTER TABLE users ADD COLUMN deleted_at TEXT DEFAULT NULL")
         
         # Clear existing data first
         cur.execute("DELETE FROM workouts WHERE user_id=?", (user_id,))
@@ -2025,6 +2028,10 @@ def import_user_data(user_id: int, data: dict) -> tuple[bool, str]:
                  profile.get("show_height"), profile.get("show_gender"),
                  profile.get("show_age"), profile.get("show_weight"), profile.get("show_goal"))
             )
+
+        # /reset uses a soft-delete marker.  Reactivate the account as part of
+        # this same transaction so a failed import restores the old marker.
+        cur.execute("UPDATE users SET deleted_at=NULL WHERE user_id=?", (user_id,))
         
         session_map = {}
         for s in data.get("workout_sessions", []):

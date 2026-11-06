@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import bot_legacy
+import db_improved
 import services.reward_settlement as reward_settlement
 
 
@@ -92,6 +93,42 @@ class BackupV3Tests(unittest.TestCase):
         self.assertEqual(db.execute("SELECT COUNT(*) FROM reward_events WHERE user_id=1").fetchone()[0], 1)
         db.close()
 
+    def test_import_reactivates_soft_deleted_user_and_restores_xp_level(self):
+        with patch.object(bot_legacy, "get_db", self._db):
+            backup = bot_legacy.get_user_export_data(1)
+            backup["profile"]["xp"] = 130
+            backup["profile"]["level"] = 2
+            db = self._db()
+            db.execute("UPDATE users SET deleted_at=? WHERE user_id=2", ("2026-11-06T21:00:00",))
+            db.commit()
+            db.close()
+            ok, message = bot_legacy.import_user_data(2, backup)
+        self.assertTrue(ok, message)
+
+        db = self._db()
+        self.assertEqual(db.execute("SELECT deleted_at, xp, level FROM users WHERE user_id=2").fetchone(), (None, 130, 2))
+        db.close()
+
+        def fetch_one_from_fixture(query, params=None):
+            conn = self._db()
+            try:
+                return conn.execute(query, params or ()).fetchone()
+            finally:
+                conn.close()
+
+        with patch.object(db_improved, "fetch_one", side_effect=fetch_one_from_fixture):
+            xp_info = db_improved.get_user_xp_level(2)
+        self.assertEqual((xp_info["xp"], xp_info["level"]), (130, 2))
+
+    def test_import_keeps_active_user_active(self):
+        with patch.object(bot_legacy, "get_db", self._db):
+            backup = bot_legacy.get_user_export_data(1)
+            ok, message = bot_legacy.import_user_data(2, backup)
+        self.assertTrue(ok, message)
+        db = self._db()
+        self.assertIsNone(db.execute("SELECT deleted_at FROM users WHERE user_id=2").fetchone()[0])
+        db.close()
+
     def test_same_imported_action_key_cannot_pay_again(self):
         with patch.object(bot_legacy, "get_db", self._db):
             backup = bot_legacy.get_user_export_data(1)
@@ -126,12 +163,28 @@ class BackupV3Tests(unittest.TestCase):
             backup = bot_legacy.get_user_export_data(1)
         backup["reward_events"].append(dict(backup["reward_events"][0]))
 
+        db = self._db()
+        db.execute("UPDATE users SET deleted_at=?, xp=?, level=? WHERE user_id=2", ("deleted-before-import", 7, 1))
+        db.commit()
+        db.close()
+
         with patch.object(bot_legacy, "get_db", self._db):
             ok, _ = bot_legacy.import_user_data(2, backup)
         self.assertFalse(ok)
         db = self._db()
-        self.assertEqual(db.execute("SELECT xp, coin_balance FROM users WHERE user_id=2").fetchone(), (1, 0))
+        self.assertEqual(db.execute("SELECT xp, coin_balance, deleted_at FROM users WHERE user_id=2").fetchone(), (7, 0, "deleted-before-import"))
         self.assertEqual(db.execute("SELECT COUNT(*) FROM reward_events WHERE user_id=2").fetchone()[0], 0)
+        db.close()
+
+    def test_repeated_import_does_not_duplicate_user_data(self):
+        with patch.object(bot_legacy, "get_db", self._db):
+            backup = bot_legacy.get_user_export_data(1)
+            self.assertTrue(bot_legacy.import_user_data(2, backup)[0])
+            self.assertTrue(bot_legacy.import_user_data(2, backup)[0])
+        db = self._db()
+        for table in ("workouts", "workout_sessions", "coin_rewards", "reward_events", "achievements"):
+            self.assertEqual(db.execute(f"SELECT COUNT(*) FROM {table} WHERE user_id=2").fetchone()[0],
+                             db.execute(f"SELECT COUNT(*) FROM {table} WHERE user_id=1").fetchone()[0], table)
         db.close()
 
     def test_import_on_old_schema_creates_ledger_tables(self):
