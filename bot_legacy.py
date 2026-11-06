@@ -27,7 +27,7 @@ from db_improved import (
     clear_user_all_data, verify_user_exists, get_user_data_safe,
     init_connection, get_db_context,
     get_user_streak,
-    get_user_xp_level, add_xp_to_user
+    get_user_xp_level, add_xp_to_user, ensure_users_deleted_at
 )
 from utils.levels import get_rank, xp_for_next_level, total_xp_for_level, get_progress_in_level
 from utils.streak import calculate_streak as _calculate_streak, calculate_best_streak, update_streak
@@ -837,6 +837,9 @@ def init_db():
                 'level':              'INTEGER DEFAULT 1',
             }.get(column_name, 'INTEGER DEFAULT 1')
             cur.execute(f"ALTER TABLE users ADD COLUMN {column_name} {default}")
+
+    # Migrate databases created before soft-delete support was introduced.
+    ensure_users_deleted_at(cur)
 
     cur.execute("""
                 CREATE TABLE IF NOT EXISTS weights

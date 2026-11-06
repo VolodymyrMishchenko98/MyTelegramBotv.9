@@ -50,6 +50,11 @@ def add_column_if_missing(
         )
 
 
+def ensure_users_deleted_at(cursor: sqlite3.Cursor) -> None:
+    """Add the soft-delete column to legacy users tables if needed."""
+    add_column_if_missing(cursor, "users", "deleted_at", "TEXT DEFAULT NULL")
+
+
 def _get_thread_connection() -> sqlite3.Connection:
     global _last_health_check_ts
     conn: sqlite3.Connection | None = getattr(_thread_local, "_tl_conn", None)
