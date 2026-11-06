@@ -41,6 +41,7 @@ from daily_tasks import DAILY_TASKS, DEFAULT_DAILY_TASK_ID
 from services.logging_config import get_logger
 from services.workout_stats import summarize_workouts
 from services.workout_service import save_workout_session
+from services.workout_input import parse_workout_exercises
 from game_config import (
     WORKOUT_XP_REWARD, DAILY_TASK_XP_REWARD, SUGGESTED_WORKOUT_XP, CHALLENGE_XP_REWARD,
     WORKOUT_COIN_REWARD, SUGGESTED_WORKOUT_REWARD, CHALLENGE_COIN_REWARD,
@@ -4140,7 +4141,7 @@ async def handle_input(message: Message):
 
     # WORKOUT
     if state == "workout":
-        exercises = [x.strip() for x in message.text.split(",") if x.strip()]
+        exercises = parse_workout_exercises(message.text)
         if not exercises:
             await message.answer(
                 t_pair(
