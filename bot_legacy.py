@@ -49,6 +49,7 @@ from game_config import (
     STREAK_BONUSES, STREAK_XP_MULTIPLIERS, MAX_XP_MULTIPLIER, LEVEL_UNLOCKS,
     SHOP_ITEMS,
 )
+from locales import t
 
 log = get_logger("bot.main")
 
@@ -2169,11 +2170,46 @@ async def use_item_callback(callback: CallbackQuery):
 
 
 # ---------- COMMANDS ----------
+def welcome_keyboard(lang: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="💪 Записати тренування" if lang == "uk" else "💪 Record workout", callback_data="welcome_workout")],
+        [InlineKeyboardButton(text="📖 Як користуватися" if lang == "uk" else "📖 How to use", callback_data="welcome_help")],
+        [InlineKeyboardButton(text="🇬🇧 English" if lang == "uk" else "🇺🇦 Українська", callback_data="welcome_lang_en" if lang == "uk" else "welcome_lang_uk")],
+    ])
+
+
 @dp.message(Command("start"))
 async def start(message: Message):
     uid = message.from_user.id
+    ensure_user(uid)
     lang = get_user_language(uid)
-    await message.answer(build_start_text(lang), parse_mode="HTML")
+    await message.answer(t("welcome", lang), parse_mode="HTML", reply_markup=welcome_keyboard(lang))
+
+
+@dp.message(Command("help"))
+async def help_command(message: Message):
+    lang = get_user_language(message.from_user.id)
+    await message.answer(t("help", lang), parse_mode="HTML")
+
+
+@dp.callback_query(F.data == "welcome_workout")
+async def welcome_workout(callback: CallbackQuery):
+    await callback.answer()
+    await workout(callback.message)
+
+
+@dp.callback_query(F.data == "welcome_help")
+async def welcome_help(callback: CallbackQuery):
+    await callback.answer()
+    await callback.message.answer(t("help", get_user_language(callback.from_user.id)), parse_mode="HTML")
+
+
+@dp.callback_query(F.data.startswith("welcome_lang_"))
+async def welcome_language(callback: CallbackQuery):
+    lang = callback.data.rsplit("_", 1)[-1]
+    set_user_language(callback.from_user.id, lang)
+    await callback.answer("Збережено" if lang == "uk" else "Saved")
+    await callback.message.edit_text(t("welcome", lang), parse_mode="HTML", reply_markup=welcome_keyboard(lang))
 
 
 @dp.message(Command("change_language"))
