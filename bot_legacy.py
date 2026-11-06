@@ -42,6 +42,7 @@ from services.logging_config import get_logger
 from services.workout_stats import summarize_workouts
 from services.workout_service import save_workout_session
 from services.workout_input import parse_workout_exercises
+from handlers.workouts import _workout_note_keyboard
 from game_config import (
     WORKOUT_XP_REWARD, DAILY_TASK_XP_REWARD, SUGGESTED_WORKOUT_XP, CHALLENGE_XP_REWARD,
     WORKOUT_COIN_REWARD, SUGGESTED_WORKOUT_REWARD, CHALLENGE_COIN_REWARD,
@@ -3090,25 +3091,6 @@ async def challenge_done(callback: CallbackQuery):
     await callback.answer(
         summary if rewarded else t_pair(lang, "Зараховано", "Counted")
     )
-
-
-@dp.message(Command("workout"))
-async def workout(message: Message):
-    lang = get_user_language(message.from_user.id)
-    set_user_state(message.from_user.id, "workout")
-    await message.answer(
-        t_pair(
-            lang,
-            "Введи тренування.\nМожна через кому:\nБіг 30 хвилин, Відтискування 4x20",
-            "Enter workout.\nYou can separate by commas:\nRunning 30 min, Push ups 4x20"
-        )
-    )
-
-
-def _workout_note_keyboard(lang: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(
-        text=t_pair(lang, "Пропустити", "Skip"), callback_data="workout_note_skip"
-    )]])
 
 
 async def _save_workout_with_note(

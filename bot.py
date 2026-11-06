@@ -22,11 +22,14 @@ from bot_legacy import (
     bot,
     dp,
     get_user_language,
+    set_user_state,
     invalidate_language_cache,
     main,
     set_user_language,
 )
 from handlers import admin, calories, daily, profile, reminders, shop, stats, workouts
+
+workouts.configure(get_user_language, set_user_state, t_pair)
 
 for router in (
     reminders.router,
