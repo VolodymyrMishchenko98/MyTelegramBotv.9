@@ -377,6 +377,26 @@ def init_db() -> None:
         "ON coin_rewards(user_id, date)"
     )
 
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS reward_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            source TEXT NOT NULL,
+            action_key TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            UNIQUE(user_id, source, action_key)
+        )
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS achievements (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            achievement_key TEXT NOT NULL,
+            awarded_at TEXT NOT NULL,
+            UNIQUE(user_id, achievement_key)
+        )
+    """)
+
     conn.commit()
     conn.close()
 

@@ -960,6 +960,29 @@ def init_db():
                     (user_id, date, source)
                 )
                 """)
+    cur.execute("PRAGMA table_info(coin_rewards)")
+    coin_columns = [row[1] for row in cur.fetchall()]
+    if "idem_key" not in coin_columns:
+        cur.execute("ALTER TABLE coin_rewards ADD COLUMN idem_key TEXT")
+    cur.execute("""
+                CREATE TABLE IF NOT EXISTS reward_events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    source TEXT NOT NULL,
+                    action_key TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    UNIQUE(user_id, source, action_key)
+                )
+                """)
+    cur.execute("""
+                CREATE TABLE IF NOT EXISTS achievements (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    achievement_key TEXT NOT NULL,
+                    awarded_at TEXT NOT NULL,
+                    UNIQUE(user_id, achievement_key)
+                )
+                """)
 
     db.commit()
     db.close()
@@ -1677,6 +1700,29 @@ def get_user_export_data(user_id: int) -> dict:
     
     db = get_db()
     cur = db.cursor()
+    # Keep export compatible with databases created before the reward ledger.
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS reward_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            source TEXT NOT NULL,
+            action_key TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            UNIQUE(user_id, source, action_key)
+        )
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS achievements (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            achievement_key TEXT NOT NULL,
+            awarded_at TEXT NOT NULL,
+            UNIQUE(user_id, achievement_key)
+        )
+    """)
+    cur.execute("PRAGMA table_info(coin_rewards)")
+    if not any(row[1] == "idem_key" for row in cur.fetchall()):
+        cur.execute("ALTER TABLE coin_rewards ADD COLUMN idem_key TEXT")
     
     # Profile data
     cur.execute(
@@ -1713,10 +1759,22 @@ def get_user_export_data(user_id: int) -> dict:
     
     # Coin rewards
     cur.execute(
-        "SELECT date, source, amount FROM coin_rewards WHERE user_id=?",
+        "SELECT date, source, amount, idem_key, created_at FROM coin_rewards WHERE user_id=?",
         (user_id,)
     )
     coin_rewards = cur.fetchall()
+
+    cur.execute(
+        "SELECT source, action_key, created_at FROM reward_events WHERE user_id=? ORDER BY id",
+        (user_id,)
+    )
+    reward_events = cur.fetchall()
+
+    cur.execute(
+        "SELECT achievement_key, awarded_at FROM achievements WHERE user_id=? ORDER BY id",
+        (user_id,)
+    )
+    achievements = cur.fetchall()
     
     # User items
     cur.execute(
@@ -1808,7 +1866,8 @@ def get_user_export_data(user_id: int) -> dict:
     }
     
     data = {
-        "version": "2.0",  # Version for compatibility
+        "version": "3.0",  # Preserved legacy version field
+        "backup_version": 3,
         "export_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "profile": {
             "height": profile[0] if profile else None,
@@ -1832,7 +1891,9 @@ def get_user_export_data(user_id: int) -> dict:
         "workouts": [{"text": w[0], "date": w[1], "is_challenge": w[2], "session_id": w[3], "recorded_at": w[4]} for w in workouts],
         "weights": [{"weight": w[0], "date": w[1]} for w in weights],
         "daily_tasks": [{"date": d[0], "task_id": d[1], "progress": d[2], "completed": d[3]} for d in daily_tasks],
-        "coin_rewards": [{"date": c[0], "source": c[1], "amount": c[2]} for c in coin_rewards],
+        "coin_rewards": [{"date": c[0], "source": c[1], "amount": c[2], "idem_key": c[3], "created_at": c[4]} for c in coin_rewards],
+        "reward_events": [{"source": r[0], "action_key": r[1], "created_at": r[2]} for r in reward_events],
+        "achievements": [{"achievement_key": a[0], "awarded_at": a[1]} for a in achievements],
         "user_items": [{"item_id": i[0], "purchased_at": i[1]} for i in user_items],
         # Chart statistics
         "chart_stats": {
@@ -1842,7 +1903,55 @@ def get_user_export_data(user_id: int) -> dict:
             "workout_frequency": workout_freq_stats,
         }
     }
+    # ``get_db().close()`` commits compatibility DDL on the shared DB proxy
+    # without physically closing the pooled connection.
+    db.close()
     return data
+
+
+def _validate_backup_payload(data: dict) -> tuple[bool, int, bool, str]:
+    """Validate v3 and legacy backup shapes without evaluating old rewards."""
+    if not isinstance(data, dict):
+        return False, 0, False, "Invalid data format"
+
+    raw_version = data.get("backup_version", data.get("version", 1))
+    try:
+        version = int(float(raw_version))
+    except (TypeError, ValueError):
+        return False, 0, False, "Invalid backup version"
+    if version < 1 or version > 3:
+        return False, version, False, "Unsupported backup version"
+
+    required = ("profile", "workouts", "weights", "daily_tasks", "coin_rewards", "user_items")
+    missing = [key for key in required if key not in data]
+    if missing:
+        return False, version, False, f"Missing key: {missing[0]}"
+    for key in required:
+        if not isinstance(data[key], list) and key != "profile":
+            return False, version, False, f"Invalid type for {key}"
+    if data.get("profile") is not None and not isinstance(data["profile"], dict):
+        return False, version, False, "Invalid profile"
+
+    has_ledger = "reward_events" in data and "achievements" in data
+    if version >= 3 and not has_ledger:
+        return False, version, False, "Backup v3 requires reward ledger fields"
+    if has_ledger and (not isinstance(data["reward_events"], list) or not isinstance(data["achievements"], list)):
+        return False, version, False, "Invalid reward ledger"
+
+    if "workout_sessions" in data and not isinstance(data["workout_sessions"], list):
+        return False, version, has_ledger, "Invalid type for workout_sessions"
+    row_lists = required[1:] + (("workout_sessions",) if "workout_sessions" in data else ()) + (("reward_events", "achievements") if has_ledger else ())
+    for list_key in row_lists:
+        if any(not isinstance(row, dict) for row in data[list_key]):
+            return False, version, has_ledger, f"Invalid row in {list_key}"
+    for row in data.get("reward_events", []):
+        if not isinstance(row.get("source"), str) or not isinstance(row.get("action_key"), str):
+            return False, version, has_ledger, "Invalid reward event fields"
+    for row in data.get("achievements", []):
+        if not isinstance(row.get("achievement_key"), str):
+            return False, version, has_ledger, "Invalid achievement fields"
+
+    return True, version, has_ledger, ""
 
 
 def import_user_data(user_id: int, data: dict) -> tuple[bool, str]:
@@ -1851,19 +1960,37 @@ def import_user_data(user_id: int, data: dict) -> tuple[bool, str]:
     Supports both v1.0 (basic data) and v2.0 (with chart statistics) formats.
     Chart statistics are automatically recalculated from raw data on import.
     """
-    if not isinstance(data, dict):
-        return False, "Invalid data format"
-    
-    required_keys = ["profile", "workouts", "weights", "daily_tasks", "coin_rewards", "user_items"]
-    for key in required_keys:
-        if key not in data:
-            return False, f"Missing key: {key}"
+    valid, version, has_ledger, error = _validate_backup_payload(data)
+    if not valid:
+        return False, error
     
     db = get_db()
     cur = db.cursor()
     
     try:
         cur.execute("BEGIN IMMEDIATE")
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS reward_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                source TEXT NOT NULL,
+                action_key TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                UNIQUE(user_id, source, action_key)
+            )
+        """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS achievements (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                achievement_key TEXT NOT NULL,
+                awarded_at TEXT NOT NULL,
+                UNIQUE(user_id, achievement_key)
+            )
+        """)
+        cur.execute("PRAGMA table_info(coin_rewards)")
+        if not any(row[1] == "idem_key" for row in cur.fetchall()):
+            cur.execute("ALTER TABLE coin_rewards ADD COLUMN idem_key TEXT")
         
         # Clear existing data first
         cur.execute("DELETE FROM workouts WHERE user_id=?", (user_id,))
@@ -1871,6 +1998,8 @@ def import_user_data(user_id: int, data: dict) -> tuple[bool, str]:
         cur.execute("DELETE FROM weights WHERE user_id=?", (user_id,))
         cur.execute("DELETE FROM daily_tasks WHERE user_id=?", (user_id,))
         cur.execute("DELETE FROM coin_rewards WHERE user_id=?", (user_id,))
+        cur.execute("DELETE FROM reward_events WHERE user_id=?", (user_id,))
+        cur.execute("DELETE FROM achievements WHERE user_id=?", (user_id,))
         cur.execute("DELETE FROM user_items WHERE user_id=?", (user_id,))
         
         # Import profile
@@ -1927,9 +2056,55 @@ def import_user_data(user_id: int, data: dict) -> tuple[bool, str]:
         # Import coin rewards
         for c in data.get("coin_rewards", []):
             cur.execute(
-                "INSERT INTO coin_rewards (user_id, date, source, amount, created_at) VALUES (?, ?, ?, ?, ?)",
-                (user_id, c.get("date"), c.get("source"), c.get("amount"), datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+                "INSERT INTO coin_rewards (user_id, date, source, amount, idem_key, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (user_id, c.get("date"), c.get("source"), c.get("amount"), c.get("idem_key"), c.get("created_at") or datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
             )
+
+        if has_ledger:
+            for event in data.get("reward_events", []):
+                cur.execute(
+                    "INSERT INTO reward_events (user_id, source, action_key, created_at) VALUES (?, ?, ?, ?)",
+                    (user_id, event["source"], event["action_key"], event.get("created_at") or datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+                )
+            for achievement in data.get("achievements", []):
+                cur.execute(
+                    "INSERT INTO achievements (user_id, achievement_key, awarded_at) VALUES (?, ?, ?)",
+                    (user_id, achievement["achievement_key"], achievement.get("awarded_at") or datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+                )
+        else:
+            # Legacy backups have no reward ledger. Restore XP/coins as-is and
+            # fence achievements implied by history without paying them again.
+            from services.achievements import ACHIEVEMENTS
+            cur.execute("SELECT COUNT(*) FROM workouts WHERE user_id=?", (user_id,))
+            workout_count = int(cur.fetchone()[0])
+            cur.execute("SELECT COALESCE(streak_days,0), COALESCE(level,1) FROM users WHERE user_id=?", (user_id,))
+            streak_days, level = cur.fetchone()
+            legacy_stats = {"workout_count": workout_count, "max_streak": int(streak_days or 0), "level": int(level or 1), "early_workouts": 0, "late_workouts": 0}
+            for key, achievement in ACHIEVEMENTS.items():
+                if achievement["check"](legacy_stats):
+                    cur.execute(
+                        "INSERT OR IGNORE INTO achievements (user_id, achievement_key, awarded_at) VALUES (?, ?, ?)",
+                        (user_id, key, datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+                    )
+            # Deterministic sources can be fenced even in old backups. Manual
+            # workout UUIDs are intentionally not reconstructed.
+            for coin_reward in data.get("coin_rewards", []):
+                source = coin_reward.get("source")
+                date_text = coin_reward.get("date")
+                action_key = None
+                if source == "suggest":
+                    action_key = f"suggest:{date_text}"
+                elif source == "challenge":
+                    action_key = f"challenge:{date_text}"
+                elif source == "daily":
+                    task_row = next((item for item in data.get("daily_tasks", []) if item.get("date") == date_text), None)
+                    if task_row and task_row.get("task_id"):
+                        action_key = f"daily:{date_text}:{task_row['task_id']}"
+                if action_key:
+                    cur.execute(
+                        "INSERT OR IGNORE INTO reward_events (user_id, source, action_key, created_at) VALUES (?, ?, ?, ?)",
+                        (user_id, source, action_key, datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+                    )
         
         # Import user items
         for i in data.get("user_items", []):
