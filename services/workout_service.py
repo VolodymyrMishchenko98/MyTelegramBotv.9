@@ -1,6 +1,8 @@
 """Persistence service for workout sessions."""
 from __future__ import annotations
 
+from datetime import datetime
+
 from db_improved import get_db
 
 
@@ -22,18 +24,35 @@ def save_workout_session(
 
     db = get_db()
     cur = db.cursor()
+    recorded_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     try:
         cur.execute("BEGIN IMMEDIATE")
-        cur.execute(
-            "INSERT INTO workout_sessions (user_id, date, note) VALUES (?, ?, ?)",
-            (user_id, workout_date, note),
-        )
-        session_id = cur.lastrowid
-        for exercise in exercises:
+        cur.execute("PRAGMA table_info(workout_sessions)")
+        has_recorded_at = any(row[1] == "recorded_at" for row in cur.fetchall())
+        if has_recorded_at:
             cur.execute(
-                "INSERT INTO workouts (user_id, text, date, session_id) VALUES (?, ?, ?, ?)",
-                (user_id, exercise, workout_date, session_id),
+                "INSERT INTO workout_sessions (user_id, date, note, recorded_at) VALUES (?, ?, ?, ?)",
+                (user_id, workout_date, note, recorded_at),
             )
+        else:
+            cur.execute(
+                "INSERT INTO workout_sessions (user_id, date, note) VALUES (?, ?, ?)",
+                (user_id, workout_date, note),
+            )
+        session_id = cur.lastrowid
+        cur.execute("PRAGMA table_info(workouts)")
+        has_workout_time = any(row[1] == "recorded_at" for row in cur.fetchall())
+        for exercise in exercises:
+            if has_workout_time:
+                cur.execute(
+                    "INSERT INTO workouts (user_id, text, date, session_id, recorded_at) VALUES (?, ?, ?, ?, ?)",
+                    (user_id, exercise, workout_date, session_id, recorded_at),
+                )
+            else:
+                cur.execute(
+                    "INSERT INTO workouts (user_id, text, date, session_id) VALUES (?, ?, ?, ?)",
+                    (user_id, exercise, workout_date, session_id),
+                )
         db.commit()
         return int(session_id)
     except Exception:

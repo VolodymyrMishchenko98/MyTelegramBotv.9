@@ -201,6 +201,14 @@ def verify_user_exists(user_id: int) -> bool:
     return fetch_one("SELECT 1 FROM users WHERE user_id=? AND deleted_at IS NULL", (user_id,)) is not None
 
 
+def ensure_user_exists(user_id: int) -> None:
+    """Create a minimal active user row without changing existing profile data."""
+    execute_query(
+        "INSERT INTO users (user_id) VALUES (?) ON CONFLICT(user_id) DO UPDATE SET deleted_at=NULL",
+        (user_id,),
+    )
+
+
 def get_user_data_safe(user_id: int) -> dict | None:
     row = fetch_one(
         """
@@ -292,6 +300,7 @@ def init_db() -> None:
         """
     )
     add_column_if_missing(cur, "workouts", "is_challenge", "INTEGER DEFAULT 0")
+    add_column_if_missing(cur, "workouts", "recorded_at", "TEXT")
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS workout_sessions (
@@ -303,6 +312,7 @@ def init_db() -> None:
         """
     )
     add_column_if_missing(cur, "workouts", "session_id", "INTEGER")
+    add_column_if_missing(cur, "workout_sessions", "recorded_at", "TEXT")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_workout_sessions_user_date ON workout_sessions(user_id, date)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_workouts_session_id ON workouts(session_id)")
 

@@ -1,6 +1,7 @@
 """Achievement system: track and award user accomplishments."""
 from __future__ import annotations
 
+import sqlite3
 from typing import Any
 
 from db_improved import execute_query, fetch_one, fetch_all, get_db
@@ -178,6 +179,8 @@ def check_and_award(user_id: int, stats: dict[str, Any]) -> list[dict[str, Any]]
                     "key": key,
                     "title_uk": ach["title_uk"],
                     "title_en": ach["title_en"],
+                    "desc_uk": ach["desc_uk"],
+                    "desc_en": ach["desc_en"],
                     "icon": ach["icon"],
                     "coins": coins,
                     "xp": xp,
@@ -204,14 +207,22 @@ def get_user_stats(user_id: int) -> dict[str, Any]:
     max_streak = int(row[1]) if row else 0
     level = int(row[3]) if row else 1
     
-    early = fetch_one(
-        "SELECT COUNT(*) FROM workouts WHERE user_id = ? AND CAST(SUBSTR(date, 12) AS INTEGER) < 800",
-        (user_id,),
-    )
-    late = fetch_one(
-        "SELECT COUNT(*) FROM workouts WHERE user_id = ? AND CAST(SUBSTR(date, 12) AS INTEGER) >= 2200",
-        (user_id,),
-    )
+    # ``date`` is historically calendar-only (YYYY-MM-DD). Only rows with the
+    # new nullable ``recorded_at`` timestamp can prove the time of day.
+    try:
+        early = fetch_one(
+            "SELECT COUNT(*) FROM workouts WHERE user_id = ? "
+            "AND recorded_at IS NOT NULL AND time(recorded_at) < '08:00:00'",
+            (user_id,),
+        )
+        late = fetch_one(
+            "SELECT COUNT(*) FROM workouts WHERE user_id = ? "
+            "AND recorded_at IS NOT NULL AND time(recorded_at) >= '22:00:00'",
+            (user_id,),
+        )
+    except sqlite3.OperationalError:
+        # Legacy test/import databases may not have completed the nullable migration.
+        early, late = (0,), (0,)
     
     return {
         "workout_count": workout_count,

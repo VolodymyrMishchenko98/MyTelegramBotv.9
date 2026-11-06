@@ -9,6 +9,7 @@ import json
 from datetime import datetime, timedelta
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import random
+import uuid
 import sys
 from functools import lru_cache
 from aiogram import Bot, Dispatcher
@@ -42,6 +43,9 @@ from services.logging_config import get_logger
 from services.workout_stats import summarize_workouts
 from services.workout_service import save_workout_session
 from services.workout_input import parse_workout_exercises
+from services.achievements import check_and_award, get_user_stats
+from services.reward_notifications import build_reward_summary
+from services.reward_settlement import settle_action_rewards
 from handlers.workouts import _workout_note_keyboard
 from game_config import (
     WORKOUT_XP_REWARD, DAILY_TASK_XP_REWARD, SUGGESTED_WORKOUT_XP, CHALLENGE_XP_REWARD,
@@ -97,7 +101,7 @@ async def global_error_handler(event: ErrorEvent, bot: Bot) -> bool:
 
 calories_cache = {}
 _manual_state_cache: dict[int, str] = {}
-_pending_workouts: dict[int, list[str]] = {}
+_pending_workouts: dict[int, dict] = {}
 _pending_history_edits: dict[int, dict] = {}
 
 # Shared HTTP session: one session handles ALL outgoing HTTP requests
@@ -885,9 +889,15 @@ def init_db():
     columns = [row[1] for row in cur.fetchall()]
     if 'is_challenge' not in columns:
         cur.execute("ALTER TABLE workouts ADD COLUMN is_challenge INTEGER DEFAULT 0")
+    if 'recorded_at' not in columns:
+        cur.execute("ALTER TABLE workouts ADD COLUMN recorded_at TEXT")
     cur.execute("""CREATE TABLE IF NOT EXISTS workout_sessions (
         id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL,
         date TEXT NOT NULL, note TEXT)""")
+    cur.execute("PRAGMA table_info(workout_sessions)")
+    session_columns = [row[1] for row in cur.fetchall()]
+    if 'recorded_at' not in session_columns:
+        cur.execute("ALTER TABLE workout_sessions ADD COLUMN recorded_at TEXT")
     cur.execute("PRAGMA table_info(workouts)")
     columns = [row[1] for row in cur.fetchall()]
     if 'session_id' not in columns:
@@ -1082,20 +1092,18 @@ def claim_daily_coin_reward(user_id: int, source: str, amount: int):
         cur.execute("BEGIN IMMEDIATE")
         cur.execute(
             """
-            INSERT INTO coin_rewards (user_id, date, source, amount, created_at)
+            INSERT OR IGNORE INTO coin_rewards
+                (user_id, date, source, amount, created_at)
             VALUES (?, ?, ?, ?, ?)
-            ON CONFLICT(user_id, date, source) DO UPDATE SET
-                amount = coin_rewards.amount + excluded.amount,
-                created_at = excluded.created_at
             """,
             (user_id, today, source, amount, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         )
-        # coin_balance нужно увеличить всегда, когда мы добавляем amount (в т.ч. в конфликт)
-        cur.execute(
-            "UPDATE users SET coin_balance = COALESCE(coin_balance, 0) + ? WHERE user_id=?",
-            (amount, user_id)
-        )
-        awarded = True
+        awarded = cur.rowcount == 1
+        if awarded:
+            cur.execute(
+                "UPDATE users SET coin_balance = COALESCE(coin_balance, 0) + ? WHERE user_id=?",
+                (amount, user_id)
+            )
         cur.execute("SELECT coin_balance FROM users WHERE user_id=?", (user_id,))
         balance = int((cur.fetchone() or [0])[0] or 0)
         db.commit()
@@ -1358,7 +1366,7 @@ def award_xp_and_streak(uid: int, workout_date: str, xp_amount: int) -> dict:
     streak_bonus_coins = 0
     streak_bonus_xp   = 0
     for threshold, (coins, xp_bonus) in STREAK_BONUSES.items():
-        if streak_days == threshold:
+        if streak_result.get("is_new") and streak_days == threshold:
             streak_bonus_coins = coins
             streak_bonus_xp   = xp_bonus
             break
@@ -1382,14 +1390,67 @@ def award_xp_and_streak(uid: int, workout_date: str, xp_amount: int) -> dict:
         lvl_unlock = LEVEL_UNLOCKS[new_level]
 
     sync_info = {
+        "user_id": uid,
         **xp_result,
         **streak_result,
+        "base_xp_awarded": xp_with_mult,
+        "total_xp_awarded": xp_with_mult + streak_bonus_xp,
         "streak_bonus_coins": streak_bonus_coins,
         "streak_bonus_xp":    streak_bonus_xp,
         "new_level_unlock":    lvl_unlock,
         "streak_multiplier":   multiplier,
     }
     return sync_info
+
+
+def collect_new_achievements(user_id: int) -> list[dict]:
+    """Check achievements once after a completed rewarding action."""
+    try:
+        return check_and_award(user_id, get_user_stats(user_id))
+    except Exception as exc:
+        log.warning("achievement check skipped user_id=%s: %s", user_id, exc)
+        return []
+
+
+def reward_summary(
+    lang: str,
+    action_uk: str,
+    action_en: str,
+    *,
+    xp: int = 0,
+    coins: int = 0,
+    balance: int | None = None,
+    sync_info: dict | None = None,
+    achievements: list[dict] | None = None,
+) -> str:
+    """Build one localized reward message from persisted result values."""
+    sync_info = sync_info or {}
+    xp_info = get_user_xp_level(sync_info.get("user_id", 0)) if sync_info.get("user_id") else None
+    level = sync_info.get("level")
+    xp_total = sync_info.get("xp")
+    level_up = bool(sync_info.get("leveled_up"))
+    if xp_info:
+        level_up = level_up or int(xp_info.get("level", 1)) > int(level or 1)
+        level = xp_info.get("level", level)
+        xp_total = xp_info.get("xp", xp_total)
+    if level is not None:
+        xp_next = total_xp_for_level(level) + (xp_for_next_level(level) or 0)
+    else:
+        xp_next = None
+    return build_reward_summary(
+        lang,
+        action_uk=action_uk,
+        action_en=action_en,
+        xp=xp,
+        coins=coins,
+        balance=balance,
+        streak_days=sync_info.get("streak_days"),
+        level=level,
+        level_up=level_up,
+        xp_total=xp_total,
+        xp_next=xp_next,
+        achievements=achievements,
+    )
 
 
 def format_level_block(lang: str, xp_info: dict, streak_days: int = 0) -> str:
@@ -1454,22 +1515,6 @@ def update_daily_progress(user_id: int):
             (new_progress, 1 if completed_now else 0, user_id, today)
         )
         changed = cur.rowcount
-        if changed and completed_now:
-            cur.execute(
-                """
-                INSERT OR IGNORE INTO coin_rewards (user_id, date, source, amount, created_at)
-                VALUES (?, ?, ?, ?, ?)
-                """,
-                (user_id, today, "daily", task["reward"], datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-            )
-            rewarded = cur.rowcount == 1
-        if rewarded:
-            cur.execute(
-                "UPDATE users SET coin_balance = COALESCE(coin_balance, 0) + ? WHERE user_id=?",
-                (task["reward"], user_id)
-            )
-            cur.execute("SELECT coin_balance FROM users WHERE user_id=?", (user_id,))
-            balance = int((cur.fetchone() or [0])[0] or 0)
         db.commit()
     except Exception:
         db.rollback()
@@ -1480,7 +1525,9 @@ def update_daily_progress(user_id: int):
     if not changed:
         return task, progress, True, False, get_coin_balance(user_id)
 
-    return task, new_progress, completed_now, rewarded, balance
+    # Coins and XP are settled together by settle_action_rewards after the
+    # task transition commits successfully.
+    return task, new_progress, completed_now, False, balance
 
 
 def parse_activity_and_duration(text: str):
@@ -1643,11 +1690,11 @@ def get_user_export_data(user_id: int) -> dict:
     
     # Workouts
     cur.execute(
-        "SELECT text, date, is_challenge, session_id FROM workouts WHERE user_id=? ORDER BY date",
+        "SELECT text, date, is_challenge, session_id, recorded_at FROM workouts WHERE user_id=? ORDER BY date",
         (user_id,)
     )
     workouts = cur.fetchall()
-    cur.execute("SELECT id, date, note FROM workout_sessions WHERE user_id=? ORDER BY id", (user_id,))
+    cur.execute("SELECT id, date, note, recorded_at FROM workout_sessions WHERE user_id=? ORDER BY id", (user_id,))
     workout_sessions = cur.fetchall()
     
     # Weights
@@ -1738,7 +1785,7 @@ def get_user_export_data(user_id: int) -> dict:
     
     # Volume statistics (extract numbers from workout text)
     volume_by_date = defaultdict(int)
-    for w_text, w_date, _, _ in workouts:
+    for w_text, w_date, _, _, _ in workouts:
         numbers = re.findall(r'(\d+)', w_text)
         for num in numbers:
             volume_by_date[w_date] += int(num)
@@ -1751,7 +1798,7 @@ def get_user_export_data(user_id: int) -> dict:
     
     # Workout frequency by date
     workout_count_by_date = defaultdict(int)
-    for _, w_date, _, _ in workouts:
+    for _, w_date, _, _, _ in workouts:
         workout_count_by_date[w_date] += 1
     
     workout_freq_stats = {
@@ -1781,8 +1828,8 @@ def get_user_export_data(user_id: int) -> dict:
             "show_weight": profile[14] if profile else None,
             "show_goal": profile[15] if profile else None,
         } if profile else None,
-        "workout_sessions": [{"id": s[0], "date": s[1], "note": s[2]} for s in workout_sessions],
-        "workouts": [{"text": w[0], "date": w[1], "is_challenge": w[2], "session_id": w[3]} for w in workouts],
+        "workout_sessions": [{"id": s[0], "date": s[1], "note": s[2], "recorded_at": s[3]} for s in workout_sessions],
+        "workouts": [{"text": w[0], "date": w[1], "is_challenge": w[2], "session_id": w[3], "recorded_at": w[4]} for w in workouts],
         "weights": [{"weight": w[0], "date": w[1]} for w in weights],
         "daily_tasks": [{"date": d[0], "task_id": d[1], "progress": d[2], "completed": d[3]} for d in daily_tasks],
         "coin_rewards": [{"date": c[0], "source": c[1], "amount": c[2]} for c in coin_rewards],
@@ -1852,15 +1899,15 @@ def import_user_data(user_id: int, data: dict) -> tuple[bool, str]:
         
         session_map = {}
         for s in data.get("workout_sessions", []):
-            cur.execute("INSERT INTO workout_sessions (user_id, date, note) VALUES (?, ?, ?)",
-                        (user_id, s.get("date"), s.get("note")))
+            cur.execute("INSERT INTO workout_sessions (user_id, date, note, recorded_at) VALUES (?, ?, ?, ?)",
+                        (user_id, s.get("date"), s.get("note"), s.get("recorded_at")))
             session_map[s.get("id")] = cur.lastrowid
 
         # Import workouts
         for w in data.get("workouts", []):
             cur.execute(
-                "INSERT INTO workouts (user_id, text, date, is_challenge, session_id) VALUES (?, ?, ?, ?, ?)",
-                (user_id, w.get("text"), w.get("date"), w.get("is_challenge", 0), session_map.get(w.get("session_id")))
+                "INSERT INTO workouts (user_id, text, date, is_challenge, session_id, recorded_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (user_id, w.get("text"), w.get("date"), w.get("is_challenge", 0), session_map.get(w.get("session_id")), w.get("recorded_at"))
             )
         
         # Import weights
@@ -2515,16 +2562,25 @@ async def daily_progress(callback: CallbackQuery):
         return
 
     date_text, task_id, task, progress, completed = get_or_create_daily_task(uid)
+    was_completed = completed
     xp_amount   = 0
     if not completed:
         _, progress, completed, rewarded, balance = update_daily_progress(uid)
     else:
         rewarded, balance = False, get_coin_balance(uid)
 
-    completed_now = completed or None
-    if progress and completed_now:
-        xp_info = add_xp_to_user(uid, DAILY_TASK_XP_REWARD)
+    completed_now = completed
+    just_completed = not was_completed and completed_now
+    reward_info = {}
+    if just_completed:
+        reward_info = settle_action_rewards(
+            uid, today, DAILY_TASK_XP_REWARD, task["reward"], "daily",
+            update_streak=False, action_key=f"daily:{today}:{task_id}"
+        )
+        xp_info = reward_info
         xp_amount = DAILY_TASK_XP_REWARD
+        rewarded = reward_info.get("coins_awarded", 0) > 0
+        balance = reward_info.get("balance", balance)
 
     if completed_now is True and progress >= task["target"]:
         completed_now = True
@@ -2532,30 +2588,23 @@ async def daily_progress(callback: CallbackQuery):
         completed_now = progress >= task["target"]
 
     text = build_daily_task_text(lang, task, progress, completed_now or completed)
-    if not completed_now:
-        if xp_amount:
-            text += t_pair(
-                lang,
-                f"\n\n⭐ +{xp_amount} XP",
-                f"\n\n⭐ +{xp_amount} XP"
-            )
-            if xp_info.get("leveled_up"):
-                text += t_pair(
-                    lang,
-                    f"\n🏆 LEVEL UP! Рівень {xp_info['level']}",
-                    f"\n🏆 LEVEL UP! Level {xp_info['level']}"
-                )
-        if rewarded:
-            text += t_pair(
-                lang,
-                f"\n\n🪙 +{task['reward']} монет\nБаланс: {balance}",
-                f"\n\n🪙 +{task['reward']} coins\nBalance: {balance}"
-            )
-    elif rewarded:
-        text += t_pair(
+    achievements = reward_info.get("achievements", [])
+    if xp_amount or rewarded or achievements:
+        daily_sync = {
+            **(xp_info if xp_amount else {}),
+            "user_id": uid,
+            "streak_days": None,
+            "leveled_up": bool(xp_amount and xp_info.get("leveled_up")),
+        }
+        text += "\n\n" + reward_summary(
             lang,
-            f"\n\n🪙 +{task['reward']} монет\nБаланс: {balance}",
-            f"\n\n🪙 +{task['reward']} coins\nBalance: {balance}"
+            "Щоденне завдання виконано",
+            "Daily task completed",
+            xp=reward_info.get("xp_awarded", xp_amount),
+            coins=reward_info.get("coins_awarded", task["reward"] if rewarded else 0),
+            balance=reward_info.get("balance", balance),
+            sync_info=daily_sync,
+            achievements=achievements,
         )
 
     await callback.message.edit_text(
@@ -2567,13 +2616,8 @@ async def daily_progress(callback: CallbackQuery):
         parse_mode="HTML",
         reply_markup=daily_task_keyboard(lang, task, completed_now or completed, date_text)
     )
-    if rewarded:
-        if xp_amount:
-            await callback.answer(t_pair(lang,
-                f"+{task['reward']} монет · ⭐ +{xp_amount} XP",
-                f"+{task['reward']} coins · ⭐ +{xp_amount} XP"))
-        else:
-            await callback.answer(t_pair(lang, f"+{task['reward']} монет", f"+{task['reward']} coins"))
+    if rewarded or xp_amount or achievements:
+        await callback.answer(t_pair(lang, "Нагороди нараховано", "Rewards granted"))
     else:
         await callback.answer(t_pair(lang, "Прогрес оновлено", "Progress updated"))
 
@@ -3063,8 +3107,8 @@ async def suggest_done(callback: CallbackQuery):
     for line in workout_text.split("\n"):
         if line.startswith("•"):
             cur.execute(
-                "INSERT INTO workouts (user_id, text, date) VALUES (?, ?, ?)",
-                (uid, line[2:], today)
+                "INSERT INTO workouts (user_id, text, date, recorded_at) VALUES (?, ?, ?, ?)",
+                (uid, line[2:], today, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
             )
             saved_count += 1
 
@@ -3072,37 +3116,25 @@ async def suggest_done(callback: CallbackQuery):
     db.close()
 
     reward = SUGGESTED_WORKOUT_REWARD if saved_count else 0
-    xp_amount   = SUGGESTED_WORKOUT_XP  if saved_count else 0
-    rewarded, balance = claim_daily_coin_reward(uid, "suggest", reward) if reward else (False, get_coin_balance(uid))
-
-    # XP + streak
-    level_text = ""
-    if xp_amount:
-        sync_inf = award_xp_and_streak(uid, today, xp_amount)
-        prev_lvl  = get_user_xp_level(uid)["level"] - (1 if sync_inf["leveled_up"] else 0)
-        level_text = (
-            f"\n⭐ +{xp_amount} XP (+{sync_inf['streak_days']}🔥)"
-            + (t_pair(lang,
-                         f"\n🏆 LEVEL UP! Рівень {sync_inf['level']}",
-                         f"\n🏆 LEVEL UP! Level {sync_inf['level']}") if sync_inf["leveled_up"] else "")
-            + (t_pair(lang,
-                         f"\n🔥 Бонус серії: +{sync_inf['streak_bonus_coins']}🪙",
-                         f"\n🔥 Streak bonus: +{sync_inf['streak_bonus_coins']}🪙") if sync_inf["streak_bonus_coins"] else "")
-        )
-        balance += sync_inf.get("streak_bonus_coins", 0)
+    xp_amount = SUGGESTED_WORKOUT_XP if saved_count else 0
+    sync_inf = settle_action_rewards(
+        uid, today, xp_amount, reward, "suggest", action_key=f"suggest:{today}"
+    ) if saved_count else {}
+    achievements = sync_inf.get("achievements", [])
+    reward_text = reward_summary(
+        lang, "Тренування збережено", "Workout saved",
+        xp=sync_inf.get("xp_awarded", 0),
+        coins=sync_inf.get("coins_awarded", 0),
+        balance=sync_inf.get("balance"), sync_info=sync_inf, achievements=achievements,
+    )
 
     edit_text = (
         callback.message.text
-        + t_pair(lang, "\n\n✅ Тренування збережено", "\n\n✅ Workout saved")
-        + (format_coin_reward(lang, reward, balance) if rewarded else "")
-        + level_text
+        + "\n\n" + reward_text
     )
 
     await callback.message.edit_text(edit_text)
-    summary = t_pair(lang, f"+{reward} монет", f"+{reward} coins")
-    if level_text:
-        summary += t_pair(lang, " · ⭐+XP", " · ⭐+XP")
-    await callback.answer(summary if rewarded else t_pair(lang, "ОК", "OK"))
+    await callback.answer(t_pair(lang, "Нагороди нараховано", "Rewards granted"))
 
 
 @dp.callback_query(F.data == "challenge_next")
@@ -3148,42 +3180,30 @@ async def challenge_done(callback: CallbackQuery):
         return
 
     cur.execute(
-        "INSERT INTO workouts (user_id, text, date, is_challenge) VALUES (?, ?, ?, 1)",
-        (uid, challenge_text, today)
+        "INSERT INTO workouts (user_id, text, date, is_challenge, recorded_at) VALUES (?, ?, ?, 1, ?)",
+        (uid, challenge_text, today, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     )
     db.commit()
     db.close()
 
-    rewarded, balance = claim_daily_coin_reward(uid, "challenge", CHALLENGE_COIN_REWARD)
-
-    # XP + streak
-    sync_inf    = award_xp_and_streak(uid, today, CHALLENGE_XP_REWARD)
-    balance    += sync_inf.get("streak_bonus_coins", 0)
-    level_text  = (
-        t_pair(lang,
-                  f"\n⭐ +{CHALLENGE_XP_REWARD} XP",
-                  f"\n⭐ +{CHALLENGE_XP_REWARD} XP")
-        + (t_pair(lang,
-                     f"\n🏆 LEVEL UP! Рівень {sync_inf['level']}",
-                     f"\n🏆 LEVEL UP! Level {sync_inf['level']}") if sync_inf["leveled_up"] else "")
-        + (t_pair(lang,
-                     f"\n🔥 Бонус серії: +{sync_inf['streak_bonus_coins']}🪙",
-                     f"\n🔥 Streak bonus: +{sync_inf['streak_bonus_coins']}🪙") if sync_inf["streak_bonus_coins"] else "")
+    sync_inf = settle_action_rewards(
+        uid, today, CHALLENGE_XP_REWARD, CHALLENGE_COIN_REWARD, "challenge",
+        action_key=f"challenge:{today}"
+    )
+    achievements = sync_inf.get("achievements", [])
+    reward_text = reward_summary(
+        lang, "Челендж зараховано", "Challenge counted",
+        xp=sync_inf.get("xp_awarded", CHALLENGE_XP_REWARD),
+        coins=sync_inf.get("coins_awarded", CHALLENGE_COIN_REWARD),
+        balance=sync_inf.get("balance"), sync_info=sync_inf, achievements=achievements,
     )
 
     edit_text = (
         callback.message.text
-        + t_pair(lang, "\n\n✅ Челендж зараховано!", "\n\n✅ Challenge counted!")
-        + (format_coin_reward(lang, CHALLENGE_COIN_REWARD, balance) if rewarded else "")
-        + level_text
+        + "\n\n" + reward_text
     )
     await callback.message.edit_text(edit_text, parse_mode="HTML")
-    summary = t_pair(lang, f"+{CHALLENGE_COIN_REWARD} монет", f"+{CHALLENGE_COIN_REWARD} coins")
-    if level_text:
-        summary += t_pair(lang, " · ⭐+XP", " · ⭐+XP")
-    await callback.answer(
-        summary if rewarded else t_pair(lang, "Зараховано", "Counted")
-    )
+    await callback.answer(t_pair(lang, "Нагороди нараховано", "Rewards granted"))
 
 
 async def _save_workout_with_note(
@@ -3191,6 +3211,7 @@ async def _save_workout_with_note(
     exercises: list[str],
     note: str | None,
     user_id: int,
+    action_key: str | None = None,
 ):
     """Persist one workout atomically for the explicitly supplied owner.
 
@@ -3216,18 +3237,30 @@ async def _save_workout_with_note(
         os.path.abspath(DB_PATH), os.getcwd(), uid, session_id, session_count, workout_count,
     )
     reward = min(len(exercises) * WORKOUT_COIN_REWARD, 50)
-    rewarded, balance = claim_daily_coin_reward(uid, "workout", reward) if reward else (False, get_coin_balance(uid))
-    sync_inf = award_xp_and_streak(uid, today, min(len(exercises) * WORKOUT_XP_REWARD, 20))
-    balance += sync_inf.get("streak_bonus_coins", 0)
+    sync_inf = settle_action_rewards(
+        uid, today, min(len(exercises) * WORKOUT_XP_REWARD, 20), reward, "workout",
+        action_key=action_key or f"session:{session_id}"
+    )
     lang = get_user_language(uid)
-    await message.answer(t_pair(lang, "Тренування збережено!", "Workout saved!") +
+    achievements = sync_inf.get("achievements", [])
+    notification = reward_summary(
+        lang,
+        "Тренування збережено!",
+        "Workout saved!",
+        xp=sync_inf.get("xp_awarded", 0),
+        coins=sync_inf.get("coins_awarded", 0),
+        balance=sync_inf.get("balance"),
+        sync_info=sync_inf,
+        achievements=achievements,
+    )
+    await message.answer(notification +
                          (t_pair(lang, f"\nНотатка: {note}", f"\nNote: {note}") if note else ""))
     if is_first_workout:
         first_save_text = t_pair(
             lang,
             "🎉 Перше тренування збережено! Воно вже в історії. Переглянь статистику, щоб побачити свій прогрес.",
             "🎉 Your first workout is saved! It is now in your history. Open stats to see your progress.",
-        ) + t_pair(lang, "\n⭐ За це тренування нараховано XP.", "\n⭐ XP was awarded for this workout.")
+        )
         try:
             await message.answer(first_save_text, reply_markup=first_workout_keyboard(lang))
         except TypeError:  # lightweight message doubles used by integrations/tests
@@ -3238,11 +3271,13 @@ async def _save_workout_with_note(
 @dp.callback_query(lambda c: c.data == "workout_note_skip")
 async def workout_note_skip(callback: CallbackQuery):
     uid = callback.from_user.id
-    exercises = _pending_workouts.get(uid)
-    if not exercises:
+    pending = _pending_workouts.get(uid)
+    if not pending:
         await callback.answer(t_pair(get_user_language(uid), "Введення вже завершено", "Input already finished"))
         return
-    await _save_workout_with_note(callback.message, exercises, None, uid)
+    await _save_workout_with_note(
+        callback.message, pending["exercises"], None, uid, pending["action_key"]
+    )
     _pending_workouts.pop(uid, None)
     await callback.answer()
 
@@ -4243,7 +4278,10 @@ async def handle_input(message: Message):
             )
             return
 
-        _pending_workouts[uid] = exercises
+        _pending_workouts[uid] = {
+            "exercises": exercises,
+            "action_key": f"manual:{uuid.uuid4().hex}",
+        }
         set_user_state(uid, "workout_note")
         await message.answer(t_pair(lang, "Хочеш додати нотатку? Напиши її або натисни «Пропустити».",
                                      "Add a note? Send it or press Skip."),
@@ -4251,9 +4289,11 @@ async def handle_input(message: Message):
         return
 
     if state == "workout_note":
-        exercises = _pending_workouts.pop(uid, None)
-        if exercises:
-            await _save_workout_with_note(message, exercises, message.text.strip() or None, uid)
+        pending = _pending_workouts.pop(uid, None)
+        if pending:
+            await _save_workout_with_note(
+                message, pending["exercises"], message.text.strip() or None, uid, pending["action_key"]
+            )
             _pending_workouts.pop(uid, None)
         else:
             clear_user_state(uid)
