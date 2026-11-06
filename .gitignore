@@ -14,3 +14,39 @@ __pycache__/
 
 # Env
 venv/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+*.db-shm
+*.db-wal
+sportbot.db
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Logs and runtime files
+*.log
+.bot.lock
+
+# Local exports and backups
+export_*.json
+backup_*.json
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
