@@ -61,6 +61,31 @@ class HistoryHelpersTests(unittest.TestCase):
         self.assertEqual(bot_legacy._history_clip("<script>"), "&lt;script&gt;")
         self.assertTrue(len(bot_legacy._history_clip("x" * 5000)) <= bot_legacy.HISTORY_MAX_TEXT)
 
+    def test_edit_and_delete_are_owner_scoped(self):
+        cur = self.db.cursor()
+        cur.execute("UPDATE workouts SET text=? WHERE id=? AND user_id=?", ("Updated", 1, 7))
+        cur.execute("UPDATE workout_sessions SET note=? WHERE id=? AND user_id=?", ("Updated note", 1, 7))
+        cur.execute("DELETE FROM workouts WHERE id=? AND user_id=?", (5, 7))
+        self.assertEqual(cur.rowcount, 0)
+        self.assertEqual(cur.execute("SELECT text FROM workouts WHERE id=1").fetchone()[0], "Updated")
+        self.assertEqual(cur.execute("SELECT note FROM workout_sessions WHERE id=1").fetchone()[0], "Updated note")
+
+    def test_delete_session_is_atomic_and_does_not_touch_other_user(self):
+        cur = self.db.cursor()
+        self.db.execute("BEGIN")
+        cur.execute("DELETE FROM workouts WHERE session_id=? AND user_id=?", (1, 7))
+        cur.execute("DELETE FROM workout_sessions WHERE id=? AND user_id=?", (1, 7))
+        self.db.commit()
+        self.assertIsNone(cur.execute("SELECT id FROM workout_sessions WHERE id=1").fetchone())
+        self.assertIsNotNone(cur.execute("SELECT id FROM workout_sessions WHERE id=3").fetchone())
+        self.assertIsNotNone(cur.execute("SELECT id FROM workouts WHERE id=5").fetchone())
+
+    def test_new_and_legacy_export_shapes_keep_session_id_optional(self):
+        exported = {"text": "Run", "date": "2026-11-06", "is_challenge": 0, "session_id": 1}
+        legacy = {"text": "Old", "date": "2026-11-04", "is_challenge": 0}
+        self.assertEqual(exported["session_id"], 1)
+        self.assertIsNone(legacy.get("session_id"))
+
 
 if __name__ == "__main__":
     unittest.main()

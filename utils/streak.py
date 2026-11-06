@@ -22,32 +22,55 @@ STREAK_BONUS_XP = {
 }
 
 
+def _valid_workout_dates(workout_dates: list[str]) -> set:
+    """Normalize valid YYYY-MM-DD values and collapse duplicate workout rows."""
+    result = set()
+    for value in workout_dates:
+        try:
+            result.add(datetime.strptime(str(value), "%Y-%m-%d").date())
+        except (TypeError, ValueError):
+            continue
+    return result
+
+
 def calculate_streak(last_workout_date: str | None, workout_dates: list[str]) -> int:
-    """Calculate the current streak based on last_workout_date and all workout dates."""
-    if not workout_dates:
+    """Calculate the active streak from unique calendar dates.
+
+    ``last_workout_date`` remains in the public signature for compatibility;
+    the complete date history is the source of truth for the calculation.
+    A streak remains active when the latest workout was today or yesterday.
+    """
+    dates = _valid_workout_dates(workout_dates)
+    if not dates:
         return 0
 
-    used = set(workout_dates)
     today = datetime.now().date()
-
-    # If the last_workout_date exists and is recent, start from there
-    if last_workout_date:
-        try:
-            last = datetime.strptime(last_workout_date, "%Y-%m-%d").date()
-            start = last if (today - last).days <= STREAK_THRESHOLD_DAYS else today
-        except ValueError:
-            start = today
-    else:
-        start = today
+    latest = max(dates)
+    if latest < today - timedelta(days=STREAK_THRESHOLD_DAYS):
+        return 0
 
     streak = 0
-    while True:
-        day = start - timedelta(days=streak)
-        if day.strftime("%Y-%m-%d") in used:
-            streak += 1
-        else:
-            break
+    day = latest
+    while day in dates:
+        streak += 1
+        day -= timedelta(days=1)
     return streak
+
+
+def calculate_best_streak(workout_dates: list[str]) -> int:
+    """Return the longest consecutive run of unique workout dates."""
+    dates = sorted(_valid_workout_dates(workout_dates))
+    if not dates:
+        return 0
+
+    best = current = 1
+    for previous, current_date in zip(dates, dates[1:]):
+        if (current_date - previous).days == 1:
+            current += 1
+            best = max(best, current)
+        else:
+            current = 1
+    return best
 
 
 def get_streak_bonus(streak_days: int) -> tuple[int, int]:

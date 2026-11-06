@@ -22,6 +22,7 @@ from aiogram.filters import Command
 import os
 from dotenv import load_dotenv
 from db_improved import (
+    DB_PATH,
     get_db, execute_query, fetch_one, fetch_all, execute_transaction,
     clear_user_all_data, verify_user_exists, get_user_data_safe,
     init_connection, get_db_context,
@@ -29,7 +30,7 @@ from db_improved import (
     get_user_xp_level, add_xp_to_user
 )
 from utils.levels import get_rank, xp_for_next_level, total_xp_for_level, get_progress_in_level
-from utils.streak import calculate_streak, update_streak
+from utils.streak import calculate_streak as _calculate_streak, calculate_best_streak, update_streak
 from profile_visibility import (
     get_profile_visibility, set_field_visibility, toggle_field_visibility,
     get_visible_fields, is_field_visible, ensure_user_exists, PROFILE_FIELDS
@@ -38,6 +39,7 @@ from daily_tasks import DAILY_TASKS, DEFAULT_DAILY_TASK_ID
 
 # ── thin third-party / local ────────────────────────────────────────────────
 from services.logging_config import get_logger
+from services.workout_stats import summarize_workouts
 from game_config import (
     WORKOUT_XP_REWARD, DAILY_TASK_XP_REWARD, SUGGESTED_WORKOUT_XP, CHALLENGE_XP_REWARD,
     WORKOUT_COIN_REWARD, SUGGESTED_WORKOUT_REWARD, CHALLENGE_COIN_REWARD,
@@ -92,6 +94,7 @@ async def global_error_handler(event: ErrorEvent, bot: Bot) -> bool:
 calories_cache = {}
 _manual_state_cache: dict[int, str] = {}
 _pending_workouts: dict[int, list[str]] = {}
+_pending_history_edits: dict[int, dict] = {}
 
 # Shared HTTP session: one session handles ALL outgoing HTTP requests
 # (avoids per-request TCP handovers / TLS negotiation overhead)
@@ -1572,17 +1575,8 @@ async def calc_calories_async(text: str) -> int:
 
 
 def calculate_streak(dates):
-    used = set(dates)
-    streak = 0
-    today = datetime.now().date()
-
-    while True:
-        day = today - timedelta(days=streak)
-        if day.strftime("%Y-%m-%d") in used:
-            streak += 1
-        else:
-            break
-    return streak
+    """Backward-compatible wrapper around the shared streak calculation."""
+    return _calculate_streak(None, dates)
 
 
 # ---------- RESET ----------
@@ -1642,7 +1636,7 @@ def get_user_export_data(user_id: int) -> dict:
     
     # Workouts
     cur.execute(
-        "SELECT text, date, is_challenge FROM workouts WHERE user_id=? ORDER BY date",
+        "SELECT text, date, is_challenge, session_id FROM workouts WHERE user_id=? ORDER BY date",
         (user_id,)
     )
     workouts = cur.fetchall()
@@ -1737,7 +1731,7 @@ def get_user_export_data(user_id: int) -> dict:
     
     # Volume statistics (extract numbers from workout text)
     volume_by_date = defaultdict(int)
-    for w_text, w_date, _ in workouts:
+    for w_text, w_date, _, _ in workouts:
         numbers = re.findall(r'(\d+)', w_text)
         for num in numbers:
             volume_by_date[w_date] += int(num)
@@ -1750,7 +1744,7 @@ def get_user_export_data(user_id: int) -> dict:
     
     # Workout frequency by date
     workout_count_by_date = defaultdict(int)
-    for _, w_date, _ in workouts:
+    for _, w_date, _, _ in workouts:
         workout_count_by_date[w_date] += 1
     
     workout_freq_stats = {
@@ -1781,7 +1775,7 @@ def get_user_export_data(user_id: int) -> dict:
             "show_goal": profile[15] if profile else None,
         } if profile else None,
         "workout_sessions": [{"id": s[0], "date": s[1], "note": s[2]} for s in workout_sessions],
-        "workouts": [{"text": w[0], "date": w[1], "is_challenge": w[2]} for w in workouts],
+        "workouts": [{"text": w[0], "date": w[1], "is_challenge": w[2], "session_id": w[3]} for w in workouts],
         "weights": [{"weight": w[0], "date": w[1]} for w in weights],
         "daily_tasks": [{"date": d[0], "task_id": d[1], "progress": d[2], "completed": d[3]} for d in daily_tasks],
         "coin_rewards": [{"date": c[0], "source": c[1], "amount": c[2]} for c in coin_rewards],
@@ -3115,15 +3109,42 @@ def _workout_note_keyboard(lang: str) -> InlineKeyboardMarkup:
     )]])
 
 
-async def _save_workout_with_note(message: Message, exercises: list[str], note: str | None):
-    uid = message.from_user.id
+async def _save_workout_with_note(
+    message: Message,
+    exercises: list[str],
+    note: str | None,
+    user_id: int,
+):
+    """Persist one workout atomically for the explicitly supplied owner.
+
+    ``message`` can be either a user's message or the bot message attached to
+    a callback query, so it must never be used to infer ownership here.
+    """
+    uid = user_id
     today = datetime.now().strftime("%Y-%m-%d")
     db = get_db(); cur = db.cursor()
-    cur.execute("INSERT INTO workout_sessions (user_id, date, note) VALUES (?, ?, ?)", (uid, today, note))
-    session_id = cur.lastrowid
-    for exercise in exercises:
-        cur.execute("INSERT INTO workouts (user_id, text, date, session_id) VALUES (?, ?, ?, ?)", (uid, exercise, today, session_id))
-    db.commit(); db.close()
+    try:
+        cur.execute("BEGIN IMMEDIATE")
+        cur.execute("INSERT INTO workout_sessions (user_id, date, note) VALUES (?, ?, ?)", (uid, today, note))
+        session_id = cur.lastrowid
+        for exercise in exercises:
+            cur.execute("INSERT INTO workouts (user_id, text, date, session_id) VALUES (?, ?, ?, ?)", (uid, exercise, today, session_id))
+        db.commit()
+    except Exception:
+        db.rollback()
+        db.close()
+        raise
+    db.close()
+    verify_db = get_db(); verify_cur = verify_db.cursor()
+    verify_cur.execute("SELECT COUNT(*) FROM workout_sessions WHERE user_id=?", (uid,))
+    session_count = verify_cur.fetchone()[0]
+    verify_cur.execute("SELECT COUNT(*) FROM workouts WHERE user_id=?", (uid,))
+    workout_count = verify_cur.fetchone()[0]
+    verify_db.close()
+    log.info(
+        "workout_saved db=%s cwd=%s user_id=%s session_id=%s sessions=%s workouts=%s",
+        os.path.abspath(DB_PATH), os.getcwd(), uid, session_id, session_count, workout_count,
+    )
     reward = min(len(exercises) * WORKOUT_COIN_REWARD, 50)
     rewarded, balance = claim_daily_coin_reward(uid, "workout", reward) if reward else (False, get_coin_balance(uid))
     sync_inf = award_xp_and_streak(uid, today, min(len(exercises) * WORKOUT_XP_REWARD, 20))
@@ -3136,11 +3157,12 @@ async def _save_workout_with_note(message: Message, exercises: list[str], note: 
 @dp.callback_query(lambda c: c.data == "workout_note_skip")
 async def workout_note_skip(callback: CallbackQuery):
     uid = callback.from_user.id
-    exercises = _pending_workouts.pop(uid, None)
+    exercises = _pending_workouts.get(uid)
     if not exercises:
         await callback.answer(t_pair(get_user_language(uid), "Введення вже завершено", "Input already finished"))
         return
-    await _save_workout_with_note(callback.message, exercises, None)
+    await _save_workout_with_note(callback.message, exercises, None, uid)
+    _pending_workouts.pop(uid, None)
     await callback.answer()
 
 
@@ -3234,6 +3256,15 @@ async def stats(message: Message):
     uid = message.from_user.id
     lang = get_user_language(uid)
 
+    cur.execute("SELECT COUNT(*) FROM workout_sessions WHERE user_id=?", (uid,))
+    session_count = cur.fetchone()[0]
+    cur.execute("SELECT COUNT(*) FROM workouts WHERE user_id=?", (uid,))
+    workout_count = cur.fetchone()[0]
+    log.info(
+        "stats_read_start db=%s cwd=%s user_id=%s sessions=%s workouts=%s",
+        os.path.abspath(DB_PATH), os.getcwd(), uid, session_count, workout_count,
+    )
+
     cur.execute(
         """SELECT w.date, w.text, w.is_challenge, w.session_id, s.note
            FROM workouts w LEFT JOIN workout_sessions s ON s.id=w.session_id
@@ -3242,13 +3273,32 @@ async def stats(message: Message):
     )
     rows = cur.fetchall()
     db.close()
+    log.info(
+        "stats_read_result db=%s user_id=%s rows=%s",
+        os.path.abspath(DB_PATH), uid, len(rows),
+    )
 
     if not rows:
         await message.answer(t_pair(lang, "Тренувань немає.", "No workouts yet."))
         return
 
     dates = [row[0] for row in rows]
-    streak = calculate_streak(dates)
+    streak = _calculate_streak(None, dates)
+    best_streak = calculate_best_streak(dates)
+    activity = summarize_workouts(
+        [(row[0], row[1], row[3]) for row in rows],
+        today=datetime.now().date(),
+    )
+    week_delta = activity["current_week_sessions"] - activity["previous_week_sessions"]
+    if week_delta > 0:
+        week_comparison_uk = f"Зростання на {week_delta}"
+        week_comparison_en = f"Up by {week_delta}"
+    elif week_delta < 0:
+        week_comparison_uk = f"Зниження на {abs(week_delta)}"
+        week_comparison_en = f"Down by {abs(week_delta)}"
+    else:
+        week_comparison_uk = "Без змін"
+        week_comparison_en = "No change"
 
     week_ago = (datetime.now() - timedelta(days=6)).strftime("%Y-%m-%d")
 
@@ -3276,20 +3326,39 @@ async def stats(message: Message):
         f"{xp_bar} {pct}%"
     )
 
+    activity_block = t_pair(
+        lang,
+        f"🏋️ Тренувань: {activity['total_sessions']}\n"
+        f"💪 Вправ: {activity['total_exercises']}\n"
+        f"📅 Цього тижня: {activity['current_week_sessions']}\n"
+        f"📅 Попереднього тижня: {activity['previous_week_sessions']} ({week_comparison_uk})\n"
+        f"🗓 Цього місяця: {activity['current_month_sessions']}\n"
+        f"⭐ Найчастіша вправа: {activity['popular_exercise'] or '—'} ({activity['popular_exercise_count']})",
+        f"🏋️ Workouts: {activity['total_sessions']}\n"
+        f"💪 Exercises: {activity['total_exercises']}\n"
+        f"📅 This week: {activity['current_week_sessions']}\n"
+        f"📅 Previous week: {activity['previous_week_sessions']} ({week_comparison_en})\n"
+        f"🗓 This month: {activity['current_month_sessions']}\n"
+        f"⭐ Most frequent exercise: {activity['popular_exercise'] or '—'} ({activity['popular_exercise_count']})",
+    )
+
     body_lines = [
         t_pair(
             lang,
             f"📊 Статистика\n"
             f"Днів тренування: {len(set(dates))}\n"
             f"🔥 Серія: {streak} {t_pair(lang, 'днів', 'days')}\n"
+            f"🏆 Найкраща серія: {best_streak} {t_pair(lang, 'днів', 'days')}\n"
             f"🔥 Калорій всього: ~{total_cal}\n"
             f"🔥 За 7 днів: ~{week_cal}",
             f"📊 Statistics\n"
             f"Workout days: {len(set(dates))}\n"
             f"🔥 Streak: {streak} days\n"
+            f"🏆 Best streak: {best_streak} days\n"
             f"🔥 Calories total: ~{total_cal}\n"
             f"🔥 Last 7 days: ~{week_cal}"
         ),
+        activity_block,
         level_block,
         t_pair(lang, "Останні:", "Recent:"),
     ]
@@ -3413,6 +3482,223 @@ async def history_page(callback: CallbackQuery):
     await callback.answer()
 
 
+def _history_detail_keyboard(lang: str, key: str, page: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=t_pair(lang, "✏️ Редагувати", "✏️ Edit"), callback_data=f"history_edit_{key}_{page}"),
+         InlineKeyboardButton(text=t_pair(lang, "🗑 Видалити", "🗑 Delete"), callback_data=f"history_delete_menu_{key}_{page}")],
+        [InlineKeyboardButton(text=t_pair(lang, "⬅️ Назад", "⬅️ Back"), callback_data=f"history_back_{page}")],
+    ])
+
+
+def _history_edit_keyboard(lang: str, key: str, page: int) -> InlineKeyboardMarkup:
+    rows = [[InlineKeyboardButton(text=t_pair(lang, "✏️ Змінити вправу", "✏️ Edit exercise"),
+                                  callback_data=f"history_choose_ex_{key}_{page}")]]
+    if key.startswith("s:"):
+        rows.append([InlineKeyboardButton(text=t_pair(lang, "📝 Змінити нотатку", "📝 Edit note"),
+                                          callback_data=f"history_edit_note_{key}_{page}")])
+    rows.append([InlineKeyboardButton(text=t_pair(lang, "⬅️ Назад", "⬅️ Back"),
+                                      callback_data=f"history_open_{key}_{page}")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def _history_detail_payload(user_id: int, key: str, page: int):
+    db = get_db(); cur = db.cursor(); session = None; exercises = []
+    if key.startswith("s:") and key[2:].isdigit():
+        session_id = int(key[2:])
+        cur.execute("SELECT id, date, note FROM workout_sessions WHERE id=? AND user_id=?", (session_id, user_id)); session = cur.fetchone()
+        if session:
+            cur.execute("SELECT id, text, is_challenge FROM workouts WHERE session_id=? AND user_id=? ORDER BY id", (session_id, user_id)); exercises = cur.fetchall()
+    elif key.startswith("l:") and key[2:].isdigit():
+        workout_id = int(key[2:])
+        cur.execute("SELECT id, date, NULL FROM workouts WHERE id=? AND user_id=? AND session_id IS NULL", (workout_id, user_id)); session = cur.fetchone()
+        if session:
+            cur.execute("SELECT id, text, is_challenge FROM workouts WHERE id=? AND user_id=? AND session_id IS NULL", (workout_id, user_id)); exercises = cur.fetchall()
+    db.close()
+    if not session:
+        return None
+    lang = get_user_language(user_id)
+    lines = [t_pair(lang, f"🏋️ Тренування: {_history_clip(session[1])}", f"🏋️ Workout: {_history_clip(session[1])}"), ""]
+    for _, text_value, is_challenge in exercises:
+        lines.append(("🏆 " if is_challenge else "• ") + _history_clip(text_value, 800))
+    if session[2]:
+        lines.extend(["", t_pair(lang, "📝 Нотатка:", "📝 Note:"), _history_clip(session[2], 1200)])
+    return _history_clip("\n".join(lines)), _history_detail_keyboard(lang, key, page)
+
+
+@dp.callback_query(lambda c: c.data.startswith("history_edit_") and not c.data.startswith(("history_edit_ex_", "history_edit_note_")))
+async def history_edit_menu(callback: CallbackQuery):
+    value = callback.data[len("history_edit_"):]
+    try:
+        key, page_text = value.rsplit("_", 1); page = int(page_text)
+    except (ValueError, AttributeError):
+        await callback.answer(t_pair(get_user_language(callback.from_user.id), "Застарілий запит", "Outdated request"), show_alert=True)
+        return
+    lang = get_user_language(callback.from_user.id)
+    await callback.message.edit_text(t_pair(lang, "Оберіть, що змінити:", "Choose what to edit:"), reply_markup=_history_edit_keyboard(lang, key, page))
+    await callback.answer()
+
+
+@dp.callback_query(F.data.startswith("history_choose_ex_"))
+async def history_choose_exercise(callback: CallbackQuery):
+    value = callback.data[len("history_choose_ex_"):]
+    try:
+        key, page_text = value.rsplit("_", 1); page = int(page_text)
+    except (ValueError, AttributeError):
+        await callback.answer(t_pair(get_user_language(callback.from_user.id), "Застарілий запит", "Outdated request"), show_alert=True)
+        return
+    uid = callback.from_user.id; lang = get_user_language(uid)
+    db = get_db(); cur = db.cursor()
+    if key.startswith("s:"):
+        try: item_id = int(key[2:])
+        except ValueError: item_id = -1
+        cur.execute("SELECT id, text FROM workouts WHERE session_id=? AND user_id=? ORDER BY id", (item_id, uid))
+    elif key.startswith("l:"):
+        try: item_id = int(key[2:])
+        except ValueError: item_id = -1
+        cur.execute("SELECT id, text FROM workouts WHERE id=? AND user_id=? AND session_id IS NULL", (item_id, uid))
+    else:
+        cur.execute("SELECT id, text FROM workouts WHERE 1=0")
+    exercises = cur.fetchall(); db.close()
+    if not exercises:
+        await callback.answer(t_pair(lang, "Тренування не знайдено.", "Workout not found."), show_alert=True); return
+    markup = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text=f"{index}. {_history_clip(text, 80)}", callback_data=f"history_edit_ex_{exercise_id}_{key}_{page}")
+    ] for index, (exercise_id, text) in enumerate(exercises, 1)] + [[
+        InlineKeyboardButton(text=t_pair(lang, "⬅️ Назад", "⬅️ Back"), callback_data=f"history_edit_{key}_{page}")
+    ]])
+    await callback.message.edit_text(t_pair(lang, "Оберіть вправу:", "Choose an exercise:"), reply_markup=markup)
+    await callback.answer()
+
+
+@dp.callback_query(F.data.startswith("history_edit_ex_"))
+async def history_edit_exercise_start(callback: CallbackQuery):
+    value = callback.data[len("history_edit_ex_"):]
+    try:
+        exercise_id_text, key, page_text = value.split("_", 2); exercise_id = int(exercise_id_text); page = int(page_text)
+    except (ValueError, AttributeError):
+        await callback.answer(t_pair(get_user_language(callback.from_user.id), "Застарілий запит", "Outdated request"), show_alert=True); return
+    _pending_history_edits[callback.from_user.id] = {"kind": "exercise", "id": exercise_id, "key": key, "page": page,
+                                                     "chat_id": callback.message.chat.id, "message_id": callback.message.message_id}
+    set_user_state(callback.from_user.id, "history_edit_exercise")
+    lang = get_user_language(callback.from_user.id)
+    await callback.message.edit_text(t_pair(lang, "Введіть нову назву вправи:", "Send the new exercise name:"))
+    await callback.answer()
+
+
+@dp.callback_query(F.data.startswith("history_edit_note_"))
+async def history_edit_note_start(callback: CallbackQuery):
+    value = callback.data[len("history_edit_note_"):]
+    try:
+        key, page_text = value.rsplit("_", 1); page = int(page_text); session_id = int(key[2:])
+    except (ValueError, AttributeError):
+        await callback.answer(t_pair(get_user_language(callback.from_user.id), "Застарілий запит", "Outdated request"), show_alert=True); return
+    if not key.startswith("s:"):
+        await callback.answer(t_pair(get_user_language(callback.from_user.id), "Для старого запису нотатка недоступна.", "Notes are unavailable for legacy records."), show_alert=True); return
+    _pending_history_edits[callback.from_user.id] = {"kind": "note", "id": session_id, "key": key, "page": page,
+                                                     "chat_id": callback.message.chat.id, "message_id": callback.message.message_id}
+    set_user_state(callback.from_user.id, "history_edit_note")
+    lang = get_user_language(callback.from_user.id)
+    await callback.message.edit_text(t_pair(lang, "Введіть нову нотатку. Порожній текст видалить її:", "Send the new note. Empty text removes it:"))
+    await callback.answer()
+
+
+@dp.callback_query(F.data.startswith("history_delete_menu_"))
+async def history_delete_menu(callback: CallbackQuery):
+    value = callback.data[len("history_delete_menu_"):]
+    try: key, page_text = value.rsplit("_", 1); page = int(page_text)
+    except (ValueError, AttributeError):
+        await callback.answer(t_pair(get_user_language(callback.from_user.id), "Застарілий запит", "Outdated request"), show_alert=True); return
+    lang = get_user_language(callback.from_user.id)
+    rows = []
+    if key.startswith("s:"):
+        rows.append([InlineKeyboardButton(text=t_pair(lang, "🗑 Видалити всю сесію", "🗑 Delete whole session"), callback_data=f"history_confirm_session_{key}_{page}")])
+        rows.append([InlineKeyboardButton(text=t_pair(lang, "🗑 Видалити вправу", "🗑 Delete exercise"), callback_data=f"history_choose_del_{key}_{page}")])
+    else:
+        rows.append([InlineKeyboardButton(text=t_pair(lang, "🗑 Видалити запис", "🗑 Delete record"), callback_data=f"history_confirm_exercise_{key}_{page}")])
+    rows.append([InlineKeyboardButton(text=t_pair(lang, "⬅️ Назад", "⬅️ Back"), callback_data=f"history_open_{key}_{page}")])
+    await callback.message.edit_text(t_pair(lang, "Оберіть тип видалення:", "Choose deletion type:"), reply_markup=InlineKeyboardMarkup(inline_keyboard=rows))
+    await callback.answer()
+
+
+@dp.callback_query(F.data.startswith("history_choose_del_"))
+async def history_choose_delete_exercise(callback: CallbackQuery):
+    value = callback.data[len("history_choose_del_"):]
+    try: key, page_text = value.rsplit("_", 1); page = int(page_text)
+    except (ValueError, AttributeError):
+        await callback.answer(t_pair(get_user_language(callback.from_user.id), "Застарілий запит", "Outdated request"), show_alert=True); return
+    uid = callback.from_user.id; lang = get_user_language(uid); db = get_db(); cur = db.cursor()
+    session_id = int(key[2:]) if key.startswith("s:") and key[2:].isdigit() else -1
+    cur.execute("SELECT id, text FROM workouts WHERE session_id=? AND user_id=? ORDER BY id", (session_id, uid)); exercises = cur.fetchall(); db.close()
+    if not exercises:
+        await callback.answer(t_pair(lang, "Вправи не знайдено.", "Exercises not found."), show_alert=True); return
+    markup = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text=f"{index}. {_history_clip(text, 80)}", callback_data=f"history_confirm_exercise_e:{exercise_id}_{page}")
+    ] for index, (exercise_id, text) in enumerate(exercises, 1)] + [[InlineKeyboardButton(text=t_pair(lang, "⬅️ Назад", "⬅️ Back"), callback_data=f"history_delete_menu_{key}_{page}")]])
+    await callback.message.edit_text(t_pair(lang, "Оберіть вправу для видалення:", "Choose an exercise to delete:"), reply_markup=markup); await callback.answer()
+
+
+@dp.callback_query(F.data.startswith("history_confirm_"))
+async def history_confirm_prompt(callback: CallbackQuery):
+    value = callback.data[len("history_confirm_"):]
+    lang = get_user_language(callback.from_user.id)
+    if value.startswith("session_"):
+        kind, rest = "session", value[len("session_"):]
+    elif value.startswith("exercise_"):
+        kind, rest = "exercise", value[len("exercise_"):]
+    else:
+        await callback.answer(t_pair(lang, "Застарілий запит", "Outdated request"), show_alert=True); return
+    try: target, page_text = rest.rsplit("_", 1); page = int(page_text)
+    except (ValueError, AttributeError):
+        await callback.answer(t_pair(lang, "Застарілий запит", "Outdated request"), show_alert=True); return
+    cancel_target = target if target.startswith("s:") else None
+    cancel_callback = f"history_open_{cancel_target}_{page}" if cancel_target else f"history_back_{page}"
+    markup = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text=t_pair(lang, "✅ Так, видалити", "✅ Yes, delete"), callback_data=f"history_do_delete_{kind}_{target}_{page}"),
+        InlineKeyboardButton(text=t_pair(lang, "❌ Скасувати", "❌ Cancel"), callback_data=cancel_callback)
+    ]])
+    await callback.message.edit_text(t_pair(lang, "Підтвердити видалення?", "Confirm deletion?"), reply_markup=markup); await callback.answer()
+
+
+@dp.callback_query(F.data.startswith("history_do_delete_"))
+async def history_do_delete(callback: CallbackQuery):
+    value = callback.data[len("history_do_delete_"):]
+    try: kind, target, page_text = value.split("_", 2); page = int(page_text)
+    except (ValueError, AttributeError):
+        await callback.answer(t_pair(get_user_language(callback.from_user.id), "Застарілий запит", "Outdated request"), show_alert=True); return
+    uid = callback.from_user.id; lang = get_user_language(uid); db = get_db(); cur = db.cursor()
+    try:
+        cur.execute("BEGIN IMMEDIATE")
+        if kind == "session" and target.startswith("s:"):
+            session_id = int(target[2:])
+            cur.execute("DELETE FROM workouts WHERE session_id=? AND user_id=?", (session_id, uid))
+            deleted = cur.rowcount
+            cur.execute("DELETE FROM workout_sessions WHERE id=? AND user_id=?", (session_id, uid))
+            deleted += cur.rowcount
+        elif kind == "exercise":
+            exercise_id = int(target[2:]) if target.startswith(("e:", "l:")) else int(target)
+            cur.execute("SELECT session_id FROM workouts WHERE id=? AND user_id=?", (exercise_id, uid))
+            session_row = cur.fetchone()
+            session_id = session_row[0] if session_row else None
+            cur.execute("DELETE FROM workouts WHERE id=? AND user_id=?", (exercise_id, uid)); deleted = cur.rowcount
+            if deleted and session_id is not None:
+                cur.execute("SELECT COUNT(*) FROM workouts WHERE session_id=? AND user_id=?", (session_id, uid))
+                if cur.fetchone()[0] == 0:
+                    cur.execute("DELETE FROM workout_sessions WHERE id=? AND user_id=?", (session_id, uid))
+        else:
+            deleted = 0
+        db.commit()
+    except (ValueError, sqlite3.Error):
+        db.rollback(); deleted = 0
+    finally:
+        db.close()
+    if not deleted:
+        await callback.answer(t_pair(lang, "Запис уже видалено або доступ заборонено.", "Record already deleted or access denied."), show_alert=True); return
+    if kind == "session":
+        page = max(0, page)
+    await _history_list_message(callback, page)
+    await callback.answer(t_pair(lang, "Видалено", "Deleted"))
+
+
 @dp.callback_query(F.data.startswith("history_open_"))
 async def history_open(callback: CallbackQuery):
     uid = callback.from_user.id
@@ -3459,6 +3745,7 @@ async def history_open(callback: CallbackQuery):
     markup = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(
         text=t_pair(lang, "⬅️ До історії", "⬅️ Back to history"), callback_data=f"history_back_{return_page}"
     )]])
+    markup = _history_detail_keyboard(lang, key, return_page)
     await callback.message.edit_text(_history_clip("\n".join(lines)), reply_markup=markup)
     await callback.answer()
 
@@ -3689,6 +3976,37 @@ async def handle_input(message: Message):
         await message.answer(t_pair(lang, "Я на зв'язку 👋 Використай /start, щоб побачити команди.", "I'm here 👋 Use /start to see commands."))
         return
 
+    if state in ("history_edit_exercise", "history_edit_note"):
+        pending = _pending_history_edits.get(uid)
+        if not pending:
+            clear_user_state(uid)
+            await message.answer(t_pair(lang, "Редагування вже завершено.", "Editing has already finished."))
+            return
+        value = message.text.strip()
+        if state == "history_edit_exercise":
+            if not value:
+                await message.answer(t_pair(lang, "Назва вправи не може бути порожньою.", "Exercise name cannot be empty.")); return
+            if len(value) > 500:
+                await message.answer(t_pair(lang, "Назва надто довга (максимум 500 символів).", "Name is too long (maximum 500 characters).")); return
+            db = get_db(); cur = db.cursor()
+            cur.execute("UPDATE workouts SET text=? WHERE id=? AND user_id=?", (value, pending["id"], uid)); changed = cur.rowcount
+            db.commit(); db.close()
+        else:
+            if len(value) > 2000:
+                await message.answer(t_pair(lang, "Нотатка надто довга (максимум 2000 символів).", "Note is too long (maximum 2000 characters).")); return
+            db = get_db(); cur = db.cursor()
+            cur.execute("UPDATE workout_sessions SET note=? WHERE id=? AND user_id=?", (value or None, pending["id"], uid)); changed = cur.rowcount
+            db.commit(); db.close()
+        meta = _pending_history_edits.pop(uid)
+        clear_user_state(uid)
+        payload = _history_detail_payload(uid, meta["key"], meta["page"])
+        if changed and payload:
+            await bot.edit_message_text(chat_id=meta["chat_id"], message_id=meta["message_id"], text=payload[0], reply_markup=payload[1])
+            await message.answer(t_pair(lang, "Зміни збережено.", "Changes saved."))
+        else:
+            await message.answer(t_pair(lang, "Запис не знайдено або доступ заборонено.", "Record not found or access denied."))
+        return
+
     if state == "weekly_goal":
         try:
             goal = int(message.text)
@@ -3854,7 +4172,8 @@ async def handle_input(message: Message):
     if state == "workout_note":
         exercises = _pending_workouts.pop(uid, None)
         if exercises:
-            await _save_workout_with_note(message, exercises, message.text.strip() or None)
+            await _save_workout_with_note(message, exercises, message.text.strip() or None, uid)
+            _pending_workouts.pop(uid, None)
         else:
             clear_user_state(uid)
         return

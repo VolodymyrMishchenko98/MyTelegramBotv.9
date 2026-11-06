@@ -10,10 +10,14 @@ import sqlite3
 import threading
 from contextlib import contextmanager
 from datetime import datetime
+from pathlib import Path
 
 from services.logging_config import get_logger
 
-DB_PATH = "sportbot.db"
+# Keep the database location independent of the process working directory.
+# This prevents the bot and tests launched from different directories from
+# silently opening different SQLite files.
+DB_PATH = str(Path(__file__).resolve().parent / "sportbot.db")
 log = get_logger("db")
 
 _db_lock                        = threading.RLock()

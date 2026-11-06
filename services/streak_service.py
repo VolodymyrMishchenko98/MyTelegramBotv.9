@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from db_improved import get_db, fetch_one
+from utils.streak import calculate_streak as _calculate_streak
 from services.logging_config import get_logger
 
 log = get_logger("services.streak")
@@ -47,16 +48,7 @@ def _get_bonus(days: int) -> tuple[int, int]:
 
 def calculate_current_streak(workout_dates: list[str]) -> int:
     """Calculate consecutive days count ending on today (or most recent day)."""
-    used: set[str] = set(workout_dates)
-    today = datetime.now().date()
-    streak = 0
-    while True:
-        day = today - timedelta(days=streak)
-        if day.strftime("%Y-%m-%d") in used:
-            streak += 1
-        else:
-            break
-    return streak
+    return _calculate_streak(None, workout_dates)
 
 
 def get_user_streak_info(user_id: int) -> dict[str, Any]:
