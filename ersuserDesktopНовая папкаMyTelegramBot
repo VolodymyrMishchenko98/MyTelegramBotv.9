@@ -1,0 +1,153 @@
+[33mcommit ceba0c03c16986eb72f30285ae91e2ddc5dd4dbc[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31msecond-repo/main[m[33m, [m[1;31msecond-repo/HEAD[m[33m)[m
+Author: Володимир Міщенко <vmishchenko2013@gmail.com>
+Date:   Thu May 21 10:26:58 2026 +0300
+
+    Fixing premium
+
+[33mcommit 35934bff45f2a36f3041a1e6c7fcf5281b364e9c[m
+Author: Володимир Міщенко <vmishchenko2013@gmail.com>
+Date:   Thu May 21 10:01:01 2026 +0300
+
+    Adding premium to export
+
+[33mcommit 50b0b02227f3b7db9d9e5cbb73d3aacdca3185b5[m
+Author: Володимир Міщенко <vmishchenko2013@gmail.com>
+Date:   Thu May 21 09:46:37 2026 +0300
+
+    Adding premium 0.2 with payments
+
+[33mcommit e9dcdb79e84b610e176b6eeed8c0ac785e196b9b[m
+Author: Володимир Міщенко <vmishchenko2013@gmail.com>
+Date:   Thu May 21 09:35:46 2026 +0300
+
+    Adding premium 0.1 with payments
+
+[33mcommit 982d3ac01b6ded284c271199ac617506f63ce4d4[m
+Author: Володимир Міщенко <vmishchenko2013@gmail.com>
+Date:   Tue May 19 14:14:21 2026 +0300
+
+    Fixing /start
+
+[33mcommit 7ccf4b979ca9ef07bb63daa89ca6ad28ede0a0ab[m
+Author: Володимир Міщенко <vmishchenko2013@gmail.com>
+Date:   Tue May 19 11:22:59 2026 +0300
+
+    Fixing export/import for weight stats
+
+[33mcommit a650fe76ec587b7d3cf6fd73ec003d02a1e85f3f[m
+Author: Володимир Міщенко <vmishchenko2013@gmail.com>
+Date:   Tue May 19 10:09:31 2026 +0300
+
+    Adding sense to shop items
+
+[33mcommit 596810ae2a25362eadcad8a5ef2d85c6de957319[m
+Author: Володимир Міщенко <vmishchenko2013@gmail.com>
+Date:   Tue May 19 09:27:56 2026 +0300
+
+    Fixing import/export with json
+
+[33mcommit 050e8a7f61e2854732b8fc70e07caac9bb10d9c9[m
+Author: Володимир Міщенко <vmishchenko2013@gmail.com>
+Date:   Tue May 19 09:23:37 2026 +0300
+
+    Adding import/export
+
+[33mcommit f3a7ab900c7f867c572f5bfd5fc034e959d154a3[m
+Author: Володимир Міщенко <vmishchenko2013@gmail.com>
+Date:   Mon May 18 22:00:42 2026 +0300
+
+    Removing mistakes from /chart
+
+[33mcommit fdc144d59c692db389400c16d17a4fb8cbc36420[m
+Author: Володимир Міщенко <vmishchenko2013@gmail.com>
+Date:   Sun May 17 21:26:38 2026 +0300
+
+    Replacing all mistakes brother.3
+
+[33mcommit 13fd54d893c3270b16a456e4ea1a2e18cf390f6c[m
+Author: Володимир Міщенко <vmishchenko2013@gmail.com>
+Date:   Sun May 17 20:57:21 2026 +0300
+
+    Replacing all mistakes brother.2
+
+[33mcommit 91ee052692e59de838ba6e38f44b41cc64ca6f94[m
+Author: Володимир Міщенко <vmishchenko2013@gmail.com>
+Date:   Sun May 17 19:37:20 2026 +0300
+
+    Replacing all mistakes brother
+
+[33mcommit 7f16c308ee8bf8a1dda298dcc67133ba91e5b549[m
+Author: Володимир Міщенко <vmishchenko2013@gmail.com>
+Date:   Sun May 17 17:16:05 2026 +0300
+
+    Replacing all mistakes bruh
+
+[33mcommit a4dabcb31512fb35bda5dcac9b117666df53270a[m
+Author: Володимир Міщенко <vmishchenko2013@gmail.com>
+Date:   Sun May 17 14:39:33 2026 +0300
+
+    Second big commit
+
+[33mcommit 9df2db510a266e3a1b981f71ffa9d0fb039e0265[m
+Author: Володимир Міщенко <vmishchenko2013@gmail.com>
+Date:   Sun May 17 14:02:59 2026 +0300
+
+    Commit with changes
+
+[33mcommit 097df79e3b5b7dfb1c16ab79fe64b264ea5783cd[m
+Author: Володимир Міщенко <vmishchenko2013@gmail.com>
+Date:   Sun May 17 13:25:07 2026 +0300
+
+    Initial commit
+
+[33mcommit e2928e3df535e96406940d0529956a4d97c59fd8[m
+Author: Володимир Міщенко <vmishchenko2013@gmail.com>
+Date:   Tue Apr 28 12:14:36 2026 +0300
+
+    Fix duplicate reminder messages by using separate cursor for query iteration
+
+[33mcommit 128ac0d8bdb60b6523c9849eefc2414211071edb[m
+Author: Володимир Міщенко <vmishchenko2013@gmail.com>
+Date:   Sat Apr 25 23:39:45 2026 +0300
+
+    Add language selection flow and bilingual responses.
+    
+    Prompt users to choose Ukrainian or English on /start, persist the choice in the users table, and serve command/help messages in the selected language.
+    
+    Made-with: Cursor
+
+[33mcommit cf17a0e8f13c42196f5b49fbf074ce64e616bb93[m
+Author: Володимир Міщенко <vmishchenko2013@gmail.com>
+Date:   Thu Apr 23 16:09:35 2026 +0300
+
+    Fix reminders state handling for users without existing profile rows.
+    
+    Ensure reminders commands and callbacks create a user row before reading/updating reminders_enabled so the one-button status flow works consistently.
+    
+    Made-with: Cursor
+
+[33mcommit 98d82261ff5b41bd1e113dc298f4b71f2ee29473[m
+Author: Володимир Міщенко <vmishchenko2013@gmail.com>
+Date:   Thu Apr 23 12:08:16 2026 +0300
+
+    Persist conversational state in SQLite for reliable multi-step input handling.
+    
+    This fixes lost state issues (such as /set_goal replies being ignored) by replacing in-memory user_state with a persistent user_states table and helper accessors.
+    
+    Made-with: Cursor
+
+[33mcommit c56c0e6e53d3f6c360431ce5688f024428e58b36[m
+Author: Володимир Міщенко <vmishchenko2013@gmail.com>
+Date:   Thu Apr 23 11:59:58 2026 +0300
+
+    Prepare bot for cloud deployment and improve user experience.
+    
+    Update Railway-ready configuration, add interactive fitness features, improve reminders and message formatting, and integrate API-based calorie estimation with fallback logic.
+    
+    Made-with: Cursor
+
+[33mcommit a890cf0290c992c7256d92f3ec1e96c941f3a9a6[m
+Author: VovaVova-glitch <vmishchenko2013@gmail.com>
+Date:   Mon Mar 16 10:19:07 2026 +0200
+
+        Update 5.1.0

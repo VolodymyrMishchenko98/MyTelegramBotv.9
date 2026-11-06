@@ -3317,6 +3317,162 @@ async def stats(message: Message):
 
 
 # ---------- LEVEL ----------
+HISTORY_PAGE_SIZE = 5
+HISTORY_MAX_TEXT = 3500
+
+
+def _history_clip(value: str, limit: int = HISTORY_MAX_TEXT) -> str:
+    value = html.escape(str(value or ""), quote=False)
+    return value if len(value) <= limit else value[: limit - 1] + "…"
+
+
+def _history_sessions(user_id: int) -> list[dict]:
+    """Return real sessions plus legacy workouts without a session_id."""
+    db = get_db()
+    cur = db.cursor()
+    cur.execute(
+        """SELECT s.id, s.date, s.note, COUNT(w.id)
+           FROM workout_sessions s
+           LEFT JOIN workouts w ON w.session_id=s.id AND w.user_id=s.user_id
+           WHERE s.user_id=?
+           GROUP BY s.id, s.date, s.note""",
+        (user_id,),
+    )
+    sessions = [
+        {"key": f"s:{row[0]}", "id": row[0], "date": row[1], "note": row[2], "count": row[3], "legacy": False}
+        for row in cur.fetchall()
+    ]
+    cur.execute(
+        """SELECT id, date, text FROM workouts
+           WHERE user_id=? AND session_id IS NULL
+           ORDER BY date DESC, id DESC""",
+        (user_id,),
+    )
+    sessions.extend(
+        {"key": f"l:{row[0]}", "id": row[0], "date": row[1], "note": None, "count": 1,
+         "legacy": True, "text": row[2]}
+        for row in cur.fetchall()
+    )
+    db.close()
+    return sorted(sessions, key=lambda item: (item["date"] or "", item["id"]), reverse=True)
+
+
+def _history_keyboard(lang: str, page: int, page_count: int, sessions: list[dict]) -> InlineKeyboardMarkup:
+    rows = [[InlineKeyboardButton(
+        text=f"{item['date']} · {item['count']}" + (" 📝" if item["note"] else ""),
+        callback_data=f"history_open_{item['key']}_{page}"
+    )] for item in sessions]
+    navigation = []
+    if page > 0:
+        navigation.append(InlineKeyboardButton(text=t_pair(lang, "⬅️ Назад", "⬅️ Back"), callback_data=f"history_page_{page - 1}"))
+    if page + 1 < page_count:
+        navigation.append(InlineKeyboardButton(text=t_pair(lang, "Вперед ➡️", "Next ➡️"), callback_data=f"history_page_{page + 1}"))
+    if navigation:
+        rows.append(navigation)
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+async def _history_list_message(target, page: int = 0):
+    uid = target.from_user.id
+    lang = get_user_language(uid)
+    sessions = _history_sessions(uid)
+    if not sessions:
+        text = t_pair(lang, "📚 Історія тренувань порожня.", "📚 Workout history is empty.")
+        markup = None
+        page = 0
+    else:
+        page_count = (len(sessions) + HISTORY_PAGE_SIZE - 1) // HISTORY_PAGE_SIZE
+        page = max(0, min(page, page_count - 1))
+        current = sessions[page * HISTORY_PAGE_SIZE:(page + 1) * HISTORY_PAGE_SIZE]
+        lines = [t_pair(lang, "📚 Історія тренувань", "📚 Workout history"), ""]
+        for index, item in enumerate(current, page * HISTORY_PAGE_SIZE + 1):
+            marker = " 📝" if item["note"] else ""
+            unit = t_pair(lang, "вправа" if item["count"] == 1 else "вправи", "exercise" if item["count"] == 1 else "exercises")
+            lines.append(f"{index}. {_history_clip(item['date'])} — {item['count']} {unit}{marker}")
+        text = "\n".join(lines)
+        markup = _history_keyboard(lang, page, page_count, current)
+    if isinstance(target, CallbackQuery):
+        await target.message.edit_text(text, reply_markup=markup)
+    else:
+        await target.answer(text, reply_markup=markup)
+
+
+@dp.message(Command("history"))
+async def history(message: Message):
+    await _history_list_message(message, 0)
+
+
+@dp.callback_query(F.data.startswith("history_page_"))
+async def history_page(callback: CallbackQuery):
+    try:
+        page = int(callback.data.rsplit("_", 1)[1])
+    except (AttributeError, ValueError):
+        await callback.answer(t_pair(get_user_language(callback.from_user.id), "Застарілий запит", "Outdated request"), show_alert=True)
+        return
+    await _history_list_message(callback, page)
+    await callback.answer()
+
+
+@dp.callback_query(F.data.startswith("history_open_"))
+async def history_open(callback: CallbackQuery):
+    uid = callback.from_user.id
+    lang = get_user_language(uid)
+    open_value = callback.data[len("history_open_"):]
+    try:
+        key, page_text = open_value.rsplit("_", 1)
+        return_page = int(page_text)
+    except (ValueError, AttributeError):
+        key, return_page = open_value, 0
+    db = get_db(); cur = db.cursor()
+    if key.startswith("s:"):
+        try:
+            session_id = int(key[2:])
+        except ValueError:
+            session_id = -1
+        cur.execute("SELECT id, date, note FROM workout_sessions WHERE id=? AND user_id=?", (session_id, uid))
+        session = cur.fetchone()
+        if session:
+            cur.execute("SELECT text, is_challenge FROM workouts WHERE session_id=? AND user_id=? ORDER BY id", (session_id, uid))
+            exercises = cur.fetchall()
+    elif key.startswith("l:"):
+        try:
+            workout_id = int(key[2:])
+        except ValueError:
+            workout_id = -1
+        cur.execute("SELECT id, date, NULL FROM workouts WHERE id=? AND user_id=? AND session_id IS NULL", (workout_id, uid))
+        session = cur.fetchone()
+        if session:
+            cur.execute("SELECT text, is_challenge FROM workouts WHERE id=? AND user_id=?", (workout_id, uid))
+            exercises = cur.fetchall()
+    else:
+        session = None
+    db.close()
+    if not session:
+        await callback.answer(t_pair(lang, "Тренування не знайдено або доступ заборонено.", "Workout not found or access denied."), show_alert=True)
+        return
+    lines = [t_pair(lang, f"🏋️ Тренування: {_history_clip(session[1])}", f"🏋️ Workout: {_history_clip(session[1])}"), ""]
+    for text_value, is_challenge in exercises:
+        prefix = "🏆 " if is_challenge else "• "
+        lines.append(prefix + _history_clip(text_value, 800))
+    if session[2]:
+        lines.extend(["", t_pair(lang, "📝 Нотатка:", "📝 Note:"), _history_clip(session[2], 1200)])
+    markup = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(
+        text=t_pair(lang, "⬅️ До історії", "⬅️ Back to history"), callback_data=f"history_back_{return_page}"
+    )]])
+    await callback.message.edit_text(_history_clip("\n".join(lines)), reply_markup=markup)
+    await callback.answer()
+
+
+@dp.callback_query(F.data.startswith("history_back_"))
+async def history_back(callback: CallbackQuery):
+    try:
+        page = int(callback.data.rsplit("_", 1)[1])
+    except (AttributeError, ValueError):
+        page = 0
+    await _history_list_message(callback, page)
+    await callback.answer()
+
+
 @dp.message(Command("level"))
 async def level_cmd(message: Message):
     uid = message.from_user.id
@@ -3758,6 +3914,7 @@ async def main():
         BotCommand(command="profile_visibility", description="Поля профілю"),
         BotCommand(command="workout", description="Тренування"),
         BotCommand(command="today", description="Сьогодні"),
+        BotCommand(command="history", description="Історія тренувань"),
         BotCommand(command="stats", description="Статистика"),
         BotCommand(command="weight", description="Вага"),
         BotCommand(command="reset", description="Видалити все"),
