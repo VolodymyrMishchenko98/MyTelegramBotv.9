@@ -4074,7 +4074,12 @@ async def chart_volume(cb: CallbackQuery):
 
 
 # ---------- INPUT ----------
-@dp.message()
+def _is_non_command_message(message: Message) -> bool:
+    """Keep the legacy text-state handler from swallowing registered commands."""
+    return not (message.text and message.text.startswith("/"))
+
+
+@dp.message(_is_non_command_message)
 async def handle_input(message: Message):
     uid = message.from_user.id
     lang = get_user_language(uid)

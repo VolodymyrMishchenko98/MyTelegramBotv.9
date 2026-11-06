@@ -3,6 +3,8 @@ import unittest
 from unittest.mock import AsyncMock, patch
 
 from handlers import workouts
+import bot
+import bot_legacy
 
 
 class _User:
@@ -50,6 +52,26 @@ class WorkoutHandlerTests(unittest.TestCase):
         handlers = workouts.router.message.handlers
 
         self.assertEqual(len(handlers), 1)
+
+    def test_workout_router_is_connected_to_active_dispatcher(self):
+        self.assertIn(workouts.router, bot.dp.sub_routers)
+
+    def test_legacy_catch_all_does_not_match_commands(self):
+        command = type("Message", (), {"text": "/workout"})()
+        regular = type("Message", (), {"text": "Run 30 min"})()
+        self.assertFalse(bot_legacy._is_non_command_message(command))
+        self.assertTrue(bot_legacy._is_non_command_message(regular))
+
+    def test_workout_command_can_be_started_twice(self):
+        first = _Message()
+        second = _Message()
+
+        asyncio.run(workouts.workout(first))
+        asyncio.run(workouts.workout(second))
+
+        self.assertEqual(self.states, [(123, "workout"), (123, "workout")])
+        self.assertEqual(len(first.answers), 1)
+        self.assertEqual(len(second.answers), 1)
 
     def test_welcome_callback_delegates_to_active_workout_handler(self):
         from bot_legacy import welcome_workout
