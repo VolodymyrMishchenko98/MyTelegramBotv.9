@@ -31,7 +31,13 @@ def _workout_note_keyboard(lang: str) -> InlineKeyboardMarkup:
 async def workout(message: Message):
     uid = message.from_user.id
     lang = _get_user_language(uid)
-    _set_user_state(uid, "workout")
+    await start_workout_for_user(message, uid, lang)
+
+
+async def start_workout_for_user(message: Message, user_id: int, lang: str | None = None):
+    """Start the same workout flow for a command or an inline-menu action."""
+    lang = lang or _get_user_language(user_id)
+    _set_user_state(user_id, "workout")
     await message.answer(
         _t_pair(
             lang,

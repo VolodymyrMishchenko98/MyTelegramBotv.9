@@ -26,6 +26,7 @@ from bot_legacy import (
     invalidate_language_cache,
     main,
     set_user_language,
+    toggle_user_language,
 )
 from handlers import admin, calories, daily, profile, reminders, shop, stats, workouts
 

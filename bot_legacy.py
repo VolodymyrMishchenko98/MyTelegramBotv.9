@@ -2173,8 +2173,24 @@ async def use_item_callback(callback: CallbackQuery):
 def welcome_keyboard(lang: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="💪 Записати тренування" if lang == "uk" else "💪 Record workout", callback_data="welcome_workout")],
-        [InlineKeyboardButton(text="📖 Як користуватися" if lang == "uk" else "📖 How to use", callback_data="welcome_help")],
+        [InlineKeyboardButton(text="📊 Моя статистика" if lang == "uk" else "📊 My stats", callback_data="welcome_stats"),
+         InlineKeyboardButton(text="📅 Історія тренувань" if lang == "uk" else "📅 Workout history", callback_data="welcome_history")],
+        [InlineKeyboardButton(text="❓ Як користуватися" if lang == "uk" else "❓ How to use", callback_data="welcome_help")],
         [InlineKeyboardButton(text="🇬🇧 English" if lang == "uk" else "🇺🇦 Українська", callback_data="welcome_lang_en" if lang == "uk" else "welcome_lang_uk")],
+    ])
+
+
+def help_keyboard(lang: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="💪 Записати тренування" if lang == "uk" else "💪 Record workout", callback_data="welcome_workout")],
+        [InlineKeyboardButton(text="🏠 Головне меню" if lang == "uk" else "🏠 Main menu", callback_data="welcome_menu")],
+    ])
+
+
+def first_workout_keyboard(lang: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📊 Відкрити статистику" if lang == "uk" else "📊 Open stats", callback_data="welcome_stats")],
+        [InlineKeyboardButton(text="🏠 Головне меню" if lang == "uk" else "🏠 Main menu", callback_data="welcome_menu")],
     ])
 
 
@@ -2189,7 +2205,7 @@ async def start(message: Message):
 @dp.message(Command("help"))
 async def help_command(message: Message):
     lang = get_user_language(message.from_user.id)
-    await message.answer(t("help", lang), parse_mode="HTML")
+    await message.answer(t("help", lang), parse_mode="HTML", reply_markup=help_keyboard(lang))
 
 
 @dp.callback_query(F.data == "welcome_workout")
@@ -2198,22 +2214,56 @@ async def welcome_workout(callback: CallbackQuery):
     # ``workout`` was moved to handlers.workouts during the split. Importing
     # it at module scope would create a cycle: bot.py imports bot_legacy first
     # and only then configures/includes the new routers.
-    from handlers.workouts import workout as start_workout
-    await start_workout(callback.message)
+    callback_user = getattr(callback, "from_user", None)
+    if callback_user is None:  # compatibility with older callback test doubles
+        from handlers.workouts import workout as start_workout
+        await start_workout(callback.message)
+        return
+    from handlers.workouts import start_workout_for_user
+    await start_workout_for_user(callback.message, callback_user.id, get_user_language(callback_user.id))
+
+
+@dp.callback_query(F.data == "welcome_stats")
+async def welcome_stats(callback: CallbackQuery):
+    await callback.answer()
+    await stats(callback.message, callback.from_user.id)
+
+
+@dp.callback_query(F.data == "welcome_history")
+async def welcome_history(callback: CallbackQuery):
+    await callback.answer()
+    await history(callback.message, callback.from_user.id)
 
 
 @dp.callback_query(F.data == "welcome_help")
 async def welcome_help(callback: CallbackQuery):
     await callback.answer()
-    await callback.message.answer(t("help", get_user_language(callback.from_user.id)), parse_mode="HTML")
+    lang = get_user_language(callback.from_user.id)
+    await callback.message.answer(t("help", lang), parse_mode="HTML", reply_markup=help_keyboard(lang))
+
+
+@dp.callback_query(F.data == "welcome_menu")
+async def welcome_menu(callback: CallbackQuery):
+    lang = get_user_language(callback.from_user.id)
+    await callback.answer()
+    try:
+        await callback.message.edit_text(t("welcome", lang), parse_mode="HTML", reply_markup=welcome_keyboard(lang))
+    except Exception:
+        await callback.message.answer(t("welcome", lang), parse_mode="HTML", reply_markup=welcome_keyboard(lang))
 
 
 @dp.callback_query(F.data.startswith("welcome_lang_"))
 async def welcome_language(callback: CallbackQuery):
     lang = callback.data.rsplit("_", 1)[-1]
+    if lang not in ("uk", "en"):
+        await callback.answer("Outdated request", show_alert=True)
+        return
     set_user_language(callback.from_user.id, lang)
     await callback.answer("Збережено" if lang == "uk" else "Saved")
-    await callback.message.edit_text(t("welcome", lang), parse_mode="HTML", reply_markup=welcome_keyboard(lang))
+    try:
+        await callback.message.edit_text(t("welcome", lang), parse_mode="HTML", reply_markup=welcome_keyboard(lang))
+    except Exception:
+        await callback.message.answer(t("welcome", lang), parse_mode="HTML", reply_markup=welcome_keyboard(lang))
 
 
 @dp.message(Command("change_language"))
@@ -3149,6 +3199,11 @@ async def _save_workout_with_note(
     """
     uid = user_id
     today = datetime.now().strftime("%Y-%m-%d")
+    verify_db = get_db()
+    verify_cur = verify_db.cursor()
+    verify_cur.execute("SELECT 1 FROM workout_sessions WHERE user_id=? LIMIT 1", (uid,))
+    is_first_workout = verify_cur.fetchone() is None
+    verify_db.close()
     session_id = save_workout_session(uid, exercises, note, today)
     verify_db = get_db(); verify_cur = verify_db.cursor()
     verify_cur.execute("SELECT COUNT(*) FROM workout_sessions WHERE user_id=?", (uid,))
@@ -3164,8 +3219,19 @@ async def _save_workout_with_note(
     rewarded, balance = claim_daily_coin_reward(uid, "workout", reward) if reward else (False, get_coin_balance(uid))
     sync_inf = award_xp_and_streak(uid, today, min(len(exercises) * WORKOUT_XP_REWARD, 20))
     balance += sync_inf.get("streak_bonus_coins", 0)
-    await message.answer(t_pair(get_user_language(uid), "Тренування збережено!", "Workout saved!") +
-                         (t_pair(get_user_language(uid), f"\nНотатка: {note}", f"\nNote: {note}") if note else ""))
+    lang = get_user_language(uid)
+    await message.answer(t_pair(lang, "Тренування збережено!", "Workout saved!") +
+                         (t_pair(lang, f"\nНотатка: {note}", f"\nNote: {note}") if note else ""))
+    if is_first_workout:
+        first_save_text = t_pair(
+            lang,
+            "🎉 Перше тренування збережено! Воно вже в історії. Переглянь статистику, щоб побачити свій прогрес.",
+            "🎉 Your first workout is saved! It is now in your history. Open stats to see your progress.",
+        ) + t_pair(lang, "\n⭐ За це тренування нараховано XP.", "\n⭐ XP was awarded for this workout.")
+        try:
+            await message.answer(first_save_text, reply_markup=first_workout_keyboard(lang))
+        except TypeError:  # lightweight message doubles used by integrations/tests
+            await message.answer(first_save_text)
     clear_user_state(uid)
 
 
@@ -3265,10 +3331,10 @@ async def today(message: Message):
 
 # ---------- STATS ----------
 @dp.message(Command("stats"))
-async def stats(message: Message):
+async def stats(message: Message, user_id: int | None = None):
     db = get_db()
     cur = db.cursor()
-    uid = message.from_user.id
+    uid = user_id or message.from_user.id
     lang = get_user_language(uid)
 
     cur.execute("SELECT COUNT(*) FROM workout_sessions WHERE user_id=?", (uid,))
@@ -3456,8 +3522,8 @@ def _history_keyboard(lang: str, page: int, page_count: int, sessions: list[dict
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-async def _history_list_message(target, page: int = 0):
-    uid = target.from_user.id
+async def _history_list_message(target, page: int = 0, user_id: int | None = None):
+    uid = user_id or target.from_user.id
     lang = get_user_language(uid)
     sessions = _history_sessions(uid)
     if not sessions:
@@ -3482,8 +3548,8 @@ async def _history_list_message(target, page: int = 0):
 
 
 @dp.message(Command("history"))
-async def history(message: Message):
-    await _history_list_message(message, 0)
+async def history(message: Message, user_id: int | None = None):
+    await _history_list_message(message, 0, user_id)
 
 
 @dp.callback_query(F.data.startswith("history_page_"))

@@ -3,12 +3,28 @@ from __future__ import annotations
 
 TEXTS = {
     "welcome": {
-        "uk": "🔥 <b>Ласкаво просимо до SportBot!</b>\n\nТвій щоденник тренувань — тепер у Telegram.\n\n💪 Записуй свої тренування.\n📊 Відстежуй активність і статистику.\n🏆 Отримуй XP, монети та досягнення.\n📅 Переглядай історію тренувань.\n\n<b>Почни прямо зараз!</b>\n\nНатисни кнопку нижче, щоб записати перше тренування.\n\nТренуйся. Записуй. Рости! 🚀",
-        "en": "🔥 <b>Welcome to SportBot!</b>\n\nYour workout journal — right inside Telegram.\n\n💪 Record your workouts.\n📊 Track your activity and statistics.\n🏆 Earn XP, coins and achievements.\n📅 Explore your workout history.\n\n<b>Let's get started!</b>\n\nTap the button below to record your first workout.\n\nTrain. Track. Grow! 🚀",
+        "uk": ("💪 <b>SportBot — твій особистий щоденник тренувань у Telegram.</b>\n\n"
+                "Записуй заняття, переглядай статистику та історію, отримуй XP, монети й досягнення.\n\n"
+                "<b>Почни з першого тренування:</b> натисни кнопку нижче та введи вправи через кому.\n\n"
+                "Наступні кроки: переглянь статистику, історію або відкрий коротку інструкцію."),
+        "en": ("💪 <b>SportBot is your personal workout journal in Telegram.</b>\n\n"
+                "Record sessions, review your stats and history, and earn XP, coins, and achievements.\n\n"
+                "<b>Start with your first workout:</b> tap the button below and enter exercises separated by commas.\n\n"
+                "Next: check your stats, history, or open the short guide."),
     },
     "help": {
-        "uk": "<b>Як користуватися SportBot?</b>\n\n1️⃣ Натисни /workout або кнопку запису тренування.\n2️⃣ Введи вправи через кому.\n3️⃣ Додай нотатку або пропусти цей крок.\n4️⃣ Переглядай результати через /stats та /history.\n\nКорисні команди:\n/today — активність за сьогодні\n/stats — статистика тренувань\n/history — історія тренувань\n/weight — запис ваги\n/goal — цілі\n/daily — щоденні завдання\n/help — допомога",
-        "en": "<b>How to use SportBot?</b>\n\n1️⃣ Tap /workout or the record workout button.\n2️⃣ Enter exercises separated by commas.\n3️⃣ Add a note or skip this step.\n4️⃣ View results with /stats and /history.\n\nUseful commands:\n/today — today's activity\n/stats — workout statistics\n/history — workout history\n/weight — record weight\n/goal — goals\n/daily — daily tasks\n/help — help",
+        "uk": ("<b>Як користуватися SportBot</b>\n\n"
+               "<b>Тренування</b>\n/workout — записати тренування\n/today — активність за сьогодні\n/history — історія тренувань\n\n"
+               "<b>Статистика та прогрес</b>\n/stats — статистика тренувань\n/weight_stats — історія ваги\n/level — рівень, XP і серія\n/chart — графіки\n\n"
+               "<b>Профіль і цілі</b>\n/profile — профіль\n/edit_profile — змінити профіль\n/set_goal — встановити тижневу ціль\n/goal — переглянути ціль\n\n"
+               "<b>Нагороди та завдання</b>\n/daily — щоденне завдання\n/wallet — монети та інвентар\n/shop — магазин\n\n"
+               "Введи /start, щоб відкрити головне меню."),
+        "en": ("<b>How to use SportBot</b>\n\n"
+               "<b>Workouts</b>\n/workout — record a workout\n/today — today's activity\n/history — workout history\n\n"
+               "<b>Stats and progress</b>\n/stats — workout statistics\n/weight_stats — weight history\n/level — level, XP, and streak\n/chart — charts\n\n"
+               "<b>Profile and goals</b>\n/profile — profile\n/edit_profile — edit profile\n/set_goal — set a weekly goal\n/goal — view your goal\n\n"
+               "<b>Rewards and tasks</b>\n/daily — daily task\n/wallet — coins and inventory\n/shop — shop\n\n"
+               "Send /start to open the main menu."),
     },
 }
 
