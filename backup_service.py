@@ -14,7 +14,7 @@ import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from db_improved import DB_PATH
+from db_config import database_path
 from services.logging_config import get_logger
 
 log = get_logger("backup")
@@ -94,9 +94,9 @@ def _prune_old(directory: Path, days: int = 30) -> None:
             path.unlink()
 
 
-def create_backup(source: str | Path = DB_PATH, directory: str | Path | None = None) -> dict:
+def create_backup(source: str | Path | None = None, directory: str | Path | None = None) -> dict:
     """Create, verify, hash, optionally encrypt, and optionally upload a backup."""
-    source = Path(source)
+    source = Path(source) if source is not None else database_path()
     directory = Path(directory) if directory else _backup_dir()
     directory.mkdir(parents=True, exist_ok=True)
     if not source.exists() or source.stat().st_size == 0:
