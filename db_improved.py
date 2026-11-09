@@ -13,11 +13,12 @@ from datetime import datetime
 from pathlib import Path
 
 from services.logging_config import get_logger
+from db_config import database_path, production_database_required, require_database_exists
 
 # Keep the database location independent of the process working directory.
 # This prevents the bot and tests launched from different directories from
 # silently opening different SQLite files.
-DB_PATH = str(Path(__file__).resolve().parent / "sportbot.db")
+DB_PATH = str(database_path())
 log = get_logger("db")
 
 _db_lock                        = threading.RLock()
@@ -28,6 +29,8 @@ _HEALTH_CHECK_INTERVAL: float  = 60.0     # seconds
 
 
 def _open_raw_connection() -> sqlite3.Connection:
+    if production_database_required() and not Path(DB_PATH).is_file():
+        require_database_exists(DB_PATH)
     conn = sqlite3.connect(DB_PATH, check_same_thread=False, timeout=10.0)
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA journal_mode = WAL")

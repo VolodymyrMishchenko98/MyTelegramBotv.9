@@ -38,6 +38,7 @@ from profile_visibility import (
 )
 from daily_tasks import DAILY_TASKS, DEFAULT_DAILY_TASK_ID
 from backup_service import create_backup
+from db_config import production_database_required, require_database_exists
 
 # ── thin third-party / local ────────────────────────────────────────────────
 from services.logging_config import get_logger
@@ -4547,6 +4548,8 @@ async def _scheduled_database_backup() -> None:
 
 async def main():
     acquire_single_instance_lock()
+    if production_database_required():
+        require_database_exists(DB_PATH)
     init_db()
     # Protect the pre-migration state.  This is a normal verified snapshot;
     # the original database is never copied over or modified.
