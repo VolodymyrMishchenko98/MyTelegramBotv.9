@@ -1,6 +1,7 @@
 """handlers/admin.py - Admin-only commands."""
 from __future__ import annotations
 
+import asyncio
 import os
 
 from aiogram import Router
@@ -9,6 +10,7 @@ from aiogram.types import Message
 
 from db_improved import fetch_one
 from services.logging_config import get_logger
+from backup_service import create_backup
 
 log = get_logger("handlers.admin")
 router = Router()
@@ -50,3 +52,22 @@ async def cmd_admin(message: Message) -> None:
         f"🏆 Top XP: {top_xp_text}",
         parse_mode="HTML",
     )
+
+
+@router.message(Command("backup"))
+async def cmd_backup(message: Message) -> None:
+    """Run a verified backup manually; available only to configured admins."""
+    if not message.from_user or not is_admin(message.from_user.id):
+        return
+    await message.answer("⏳ Создаю и проверяю резервную копию…")
+    try:
+        manifest = await asyncio.to_thread(create_backup)
+        await message.answer(
+            "✅ Резервная копия создана и проверена\n"
+            f"Файл: <code>{manifest['file']}</code>\n"
+            f"SHA-256: <code>{manifest['sha256']}</code>",
+            parse_mode="HTML",
+        )
+    except Exception as exc:
+        log.exception("Manual database backup failed")
+        await message.answer(f"❌ Ошибка резервного копирования: <code>{type(exc).__name__}</code>", parse_mode="HTML")

@@ -45,6 +45,7 @@ env/
 # Local exports and backups
 export_*.json
 backup_*.json
+backups/
 
 # Editors / OS
 .DS_Store

@@ -37,6 +37,7 @@ from profile_visibility import (
     get_visible_fields, is_field_visible, ensure_user_exists, PROFILE_FIELDS
 )
 from daily_tasks import DAILY_TASKS, DEFAULT_DAILY_TASK_ID
+from backup_service import create_backup
 
 # ── thin third-party / local ────────────────────────────────────────────────
 from services.logging_config import get_logger
@@ -4524,14 +4525,43 @@ async def handle_input(message: Message):
 
 
 # ---------- RUN ----------
+async def _scheduled_database_backup() -> None:
+    admin_ids = [int(value.strip()) for value in os.getenv("ADMIN_IDS", "").split(",")
+                 if value.strip().isdigit()]
+    try:
+        manifest = await asyncio.to_thread(create_backup)
+        log.info("Scheduled database backup completed: %s", manifest["file"])
+        for admin_id in admin_ids:
+            try:
+                await bot.send_message(admin_id, f"✅ Backup OK: {manifest['file']}\nSHA-256: {manifest['sha256']}")
+            except Exception:
+                log.exception("Could not send backup success notification to admin %s", admin_id)
+    except Exception as exc:
+        log.exception("Scheduled database backup failed")
+        for admin_id in admin_ids:
+            try:
+                await bot.send_message(admin_id, f"❌ Backup failed: {type(exc).__name__}")
+            except Exception:
+                log.exception("Could not send backup failure notification to admin %s", admin_id)
+
+
 async def main():
     acquire_single_instance_lock()
     init_db()
+    # Protect the pre-migration state.  This is a normal verified snapshot;
+    # the original database is never copied over or modified.
+    try:
+        await asyncio.to_thread(create_backup)
+    except Exception:
+        log.exception("Pre-migration database backup failed")
+        raise
     migrated_profiles = migrate_profile_gender_values()
     if migrated_profiles:
         log.info("Normalized profile gender values: %d", migrated_profiles)
     scheduler = AsyncIOScheduler()
     scheduler.add_job(check_missed_days, 'cron', hour=9, minute=0)  # 9:00 кожноденно
+    scheduler.add_job(lambda: asyncio.create_task(_scheduled_database_backup()), "interval", hours=6,
+                      id="database_backup", replace_existing=True, coalesce=True, max_instances=1)
     scheduler.start()
     await bot.set_my_commands([
         BotCommand(command="start", description="Запуск"),
@@ -4561,6 +4591,7 @@ async def main():
         BotCommand(command="export", description="Експорт даних"),
         BotCommand(command="import", description="Імпорт даних"),
         BotCommand(command="use", description="Використати предмет"),
+        BotCommand(command="backup", description="Резервна копія (адмін)"),
     ])
     await bot.delete_webhook(drop_pending_updates=True)
     # Оптимизация polling: меньший timeout для быстрого отклика
