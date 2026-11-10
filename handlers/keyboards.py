@@ -114,11 +114,16 @@ def daily_task_keyboard(lang: str, task: dict, completed: bool,
 
 
 def chart_keyboard(lang: str) -> InlineKeyboardMarkup:
+    labels = (
+        ("⚖️ Вага", "🏋️ Тренування", "🔥 Серія", "📦 Обсяг")
+        if lang == "uk"
+        else ("⚖️ Weight", "🏋️ Workouts", "🔥 Streak", "📦 Volume")
+    )
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="⚖️ Weight",       callback_data="chart_weight"),
-         InlineKeyboardButton(text="🏋️ Workouts",    callback_data="chart_workouts")],
-        [InlineKeyboardButton(text="🔥 Streak",       callback_data="chart_streak"),
-         InlineKeyboardButton(text="📦 Volume",       callback_data="chart_volume")],
+        [InlineKeyboardButton(text=labels[0], callback_data="chart_weight"),
+         InlineKeyboardButton(text=labels[1], callback_data="chart_workouts")],
+        [InlineKeyboardButton(text=labels[2], callback_data="chart_streak"),
+         InlineKeyboardButton(text=labels[3], callback_data="chart_volume")],
     ])
 
 

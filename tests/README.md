@@ -56,6 +56,16 @@ Standalone tests for shop features without dependencies.
 
 ---
 
+#### 5. **Statistics redesign tests**
+
+`test_workout_stats.py`, `test_stats_handlers.py`, `test_history.py`, and
+`test_streak.py` cover session/day aggregation, the 28-day calendar,
+localization, callback navigation, legacy workout rows, and streaks.
+
+**Run from project root:** `python -m unittest tests.test_workout_stats tests.test_stats_handlers tests.test_history tests.test_streak`
+
+---
+
 ### 🚀 How to Run Tests
 
 #### ⚠️ IMPORTANT: Always run from project root directory

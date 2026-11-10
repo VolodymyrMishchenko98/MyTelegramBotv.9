@@ -31,7 +31,7 @@ from db_improved import (
     get_user_xp_level, add_xp_to_user, ensure_users_deleted_at
 )
 from utils.levels import get_rank, xp_for_next_level, total_xp_for_level, get_progress_in_level
-from utils.streak import calculate_streak as _calculate_streak, calculate_best_streak, update_streak
+from utils.streak import calculate_streak as _calculate_streak, update_streak
 from profile_visibility import (
     get_profile_visibility, set_field_visibility, toggle_field_visibility,
     get_visible_fields, is_field_visible, ensure_user_exists, PROFILE_FIELDS
@@ -42,7 +42,6 @@ from db_config import production_database_required, require_database_exists
 
 # ── thin third-party / local ────────────────────────────────────────────────
 from services.logging_config import get_logger
-from services.workout_stats import summarize_workouts
 from services.workout_service import save_workout_session
 from services.workout_input import parse_workout_exercises
 from services.achievements import check_and_award, get_user_stats
@@ -1502,13 +1501,9 @@ def format_level_block(lang: str, xp_info: dict, streak_days: int = 0) -> str:
 # ── Chart keyboards ─────────────────────────────────────────────────
 
 def chart_keyboard(lang: str) -> InlineKeyboardMarkup:
-    rows = [
-        [InlineKeyboardButton(text="⚖️ Weight",       callback_data="chart_weight"),
-         InlineKeyboardButton(text="🏋️ Workouts",    callback_data="chart_workouts")],
-        [InlineKeyboardButton(text="🔥 Streak",       callback_data="chart_streak"),
-         InlineKeyboardButton(text="📦 Volume",       callback_data="chart_volume")],
-    ]
-    return InlineKeyboardMarkup(inline_keyboard=rows)
+    from handlers.keyboards import chart_keyboard as build_chart_keyboard
+
+    return build_chart_keyboard(lang)
 
 
 def _chart_fetch_all(query: str, params):
@@ -3549,140 +3544,10 @@ async def today(message: Message):
 
 
 # ---------- STATS ----------
-@dp.message(Command("stats"))
 async def stats(message: Message, user_id: int | None = None):
-    db = get_db()
-    cur = db.cursor()
-    uid = user_id or message.from_user.id
-    lang = get_user_language(uid)
+    from handlers.stats import send_stats
 
-    cur.execute("SELECT COUNT(*) FROM workout_sessions WHERE user_id=?", (uid,))
-    session_count = cur.fetchone()[0]
-    cur.execute("SELECT COUNT(*) FROM workouts WHERE user_id=?", (uid,))
-    workout_count = cur.fetchone()[0]
-    log.info(
-        "stats_read_start db=%s cwd=%s user_id=%s sessions=%s workouts=%s",
-        os.path.abspath(DB_PATH), os.getcwd(), uid, session_count, workout_count,
-    )
-
-    cur.execute(
-        """SELECT w.date, w.text, w.is_challenge, w.session_id, s.note
-           FROM workouts w LEFT JOIN workout_sessions s ON s.id=w.session_id
-           WHERE w.user_id=? ORDER BY w.date DESC, w.id DESC""",
-        (uid,)
-    )
-    rows = cur.fetchall()
-    db.close()
-    log.info(
-        "stats_read_result db=%s user_id=%s rows=%s",
-        os.path.abspath(DB_PATH), uid, len(rows),
-    )
-
-    if not rows:
-        await message.answer(t_pair(lang, "Тренувань немає.", "No workouts yet."))
-        return
-
-    dates = [row[0] for row in rows]
-    streak = _calculate_streak(None, dates)
-    best_streak = calculate_best_streak(dates)
-    activity = summarize_workouts(
-        [(row[0], row[1], row[3]) for row in rows],
-        today=datetime.now().date(),
-    )
-    week_delta = activity["current_week_sessions"] - activity["previous_week_sessions"]
-    if week_delta > 0:
-        week_comparison_uk = f"Зростання на {week_delta}"
-        week_comparison_en = f"Up by {week_delta}"
-    elif week_delta < 0:
-        week_comparison_uk = f"Зниження на {abs(week_delta)}"
-        week_comparison_en = f"Down by {abs(week_delta)}"
-    else:
-        week_comparison_uk = "Без змін"
-        week_comparison_en = "No change"
-
-    week_ago = (datetime.now() - timedelta(days=6)).strftime("%Y-%m-%d")
-
-    # Параллельно считаем калории ( entirely async, no event-loop blocking )
-    all_texts = [row[1] for row in rows]
-    calories = await asyncio.gather(*(calc_calories_async(t) for t in all_texts))
-
-    total_cal = sum(calories)
-    week_cal = sum(cal for row, cal in zip(rows, calories) if row[0] >= week_ago)
-
-    # XP / Level
-    xp_info = get_user_xp_level(uid)
-    lvl     = xp_info.get("level", 1)
-    xp      = xp_info.get("xp", 0)
-    rank_uk, rank_en = get_rank(lvl)
-    prev_total  = total_xp_for_level(lvl)
-    cur_xp, xp_needed = get_progress_in_level(lvl, xp)
-    pct   = int(cur_xp / xp_needed * 100) if xp_needed else 100
-    xp_bar = "█" * (pct // 10) + "░" * (10 - pct // 10)
-
-    level_block = format_level_block(lang, xp_info) if True else (
-        f"\n\n⭐ {t_pair(lang, 'Рівень', 'Level')}: {lvl}  "
-        f"🏅 {t_pair(lang, rank_uk, rank_en)}\n"
-        f"📊 XP: {xp}\n"
-        f"{xp_bar} {pct}%"
-    )
-
-    activity_block = t_pair(
-        lang,
-        f"🏋️ Тренувань: {activity['total_sessions']}\n"
-        f"💪 Вправ: {activity['total_exercises']}\n"
-        f"📅 Цього тижня: {activity['current_week_sessions']}\n"
-        f"📅 Попереднього тижня: {activity['previous_week_sessions']} ({week_comparison_uk})\n"
-        f"🗓 Цього місяця: {activity['current_month_sessions']}\n"
-        f"⭐ Найчастіша вправа: {activity['popular_exercise'] or '—'} ({activity['popular_exercise_count']})",
-        f"🏋️ Workouts: {activity['total_sessions']}\n"
-        f"💪 Exercises: {activity['total_exercises']}\n"
-        f"📅 This week: {activity['current_week_sessions']}\n"
-        f"📅 Previous week: {activity['previous_week_sessions']} ({week_comparison_en})\n"
-        f"🗓 This month: {activity['current_month_sessions']}\n"
-        f"⭐ Most frequent exercise: {activity['popular_exercise'] or '—'} ({activity['popular_exercise_count']})",
-    )
-
-    body_lines = [
-        t_pair(
-            lang,
-            f"📊 Статистика\n"
-            f"Днів тренування: {len(set(dates))}\n"
-            f"🔥 Серія: {streak} {t_pair(lang, 'днів', 'days')}\n"
-            f"🏆 Найкраща серія: {best_streak} {t_pair(lang, 'днів', 'days')}\n"
-            f"🔥 Калорій всього: ~{total_cal}\n"
-            f"🔥 За 7 днів: ~{week_cal}",
-            f"📊 Statistics\n"
-            f"Workout days: {len(set(dates))}\n"
-            f"🔥 Streak: {streak} days\n"
-            f"🏆 Best streak: {best_streak} days\n"
-            f"🔥 Calories total: ~{total_cal}\n"
-            f"🔥 Last 7 days: ~{week_cal}"
-        ),
-        activity_block,
-        level_block,
-        t_pair(lang, "Останні:", "Recent:"),
-    ]
-
-    displayed_sessions = set()
-    for d, t, is_ch, session_id, note in rows[:5]:
-        prefix = "🏆 " if is_ch else ""
-        body_lines.append(f"{d}: {prefix}{t}")
-        if session_id is not None and session_id not in displayed_sessions and note:
-            body_lines.append(f"📝 {note}")
-        if session_id is not None:
-            displayed_sessions.add(session_id)
-
-    body_lines.append(t_pair(lang, "\n↕️ Прогрес: /weight_stats   |   📊 Графіки: /chart",
-                                  "\n↕️ Progress: /weight_stats   |   📊 Charts: /chart"))
-
-    await message.answer(
-        style_block(
-            t_pair(lang, "Статистика", "Statistics"),
-            "\n".join(body_lines).strip(),
-            icon="📊"
-        ),
-        parse_mode="HTML"
-    )
+    await send_stats(message, user_id)
 
 
 # ---------- LEVEL ----------
@@ -3731,6 +3596,10 @@ def _history_keyboard(lang: str, page: int, page_count: int, sessions: list[dict
         text=f"{item['date']} · {item['count']}" + (" 📝" if item["note"] else ""),
         callback_data=f"history_open_{item['key']}_{page}"
     )] for item in sessions]
+    rows.append([InlineKeyboardButton(
+        text=t_pair(lang, "📊 До статистики", "📊 Back to stats"),
+        callback_data="stats_home",
+    )])
     navigation = []
     if page > 0:
         navigation.append(InlineKeyboardButton(text=t_pair(lang, "⬅️ Назад", "⬅️ Back"), callback_data=f"history_page_{page - 1}"))
@@ -3743,8 +3612,10 @@ def _history_keyboard(lang: str, page: int, page_count: int, sessions: list[dict
 
 async def _history_list_message(target, page: int = 0, user_id: int | None = None):
     uid = user_id or target.from_user.id
-    lang = get_user_language(uid)
-    sessions = _history_sessions(uid)
+    lang, sessions = await asyncio.gather(
+        asyncio.to_thread(get_user_language, uid),
+        asyncio.to_thread(_history_sessions, uid),
+    )
     if not sessions:
         text = t_pair(lang, "📚 Історія тренувань порожня.", "📚 Workout history is empty.")
         markup = None

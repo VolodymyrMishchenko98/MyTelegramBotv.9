@@ -50,14 +50,15 @@ class HistoryHelpersTests(unittest.TestCase):
     def test_pagination_is_five_items_and_bounds_are_safe(self):
         rows = [{"key": f"l:{i}", "id": i, "date": "2026-01-01", "note": None, "count": 1} for i in range(7)]
         markup = bot_legacy._history_keyboard("en", 0, 2, rows[:5])
-        self.assertEqual(len(markup.inline_keyboard), 6)
+        self.assertEqual(len(markup.inline_keyboard), 7)
         self.assertEqual(markup.inline_keyboard[-1][0].callback_data, "history_page_1")
+        self.assertEqual(markup.inline_keyboard[-2][0].callback_data, "stats_home")
         markup = bot_legacy._history_keyboard("uk", 1, 2, rows[5:])
         self.assertEqual(markup.inline_keyboard[-1][0].callback_data, "history_page_0")
 
     def test_localized_labels_and_safe_clipping(self):
-        self.assertIn("Назад", bot_legacy._history_keyboard("uk", 1, 2, []).inline_keyboard[0][0].text)
-        self.assertIn("Back", bot_legacy._history_keyboard("en", 1, 2, []).inline_keyboard[0][0].text)
+        self.assertIn("статистики", bot_legacy._history_keyboard("uk", 1, 2, []).inline_keyboard[0][0].text)
+        self.assertIn("stats", bot_legacy._history_keyboard("en", 1, 2, []).inline_keyboard[0][0].text)
         self.assertEqual(bot_legacy._history_clip("<script>"), "&lt;script&gt;")
         self.assertTrue(len(bot_legacy._history_clip("x" * 5000)) <= bot_legacy.HISTORY_MAX_TEXT)
 

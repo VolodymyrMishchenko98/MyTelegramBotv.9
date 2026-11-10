@@ -31,6 +31,7 @@ from bot_legacy import (
 from handlers import admin, calories, daily, profile, reminders, shop, stats, workouts
 
 workouts.configure(get_user_language, set_user_state, t_pair)
+stats.configure(get_user_language)
 
 for router in (
     reminders.router,

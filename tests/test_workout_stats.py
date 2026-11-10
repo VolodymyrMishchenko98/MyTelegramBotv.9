@@ -2,9 +2,16 @@ import unittest
 from datetime import date, timedelta
 from pathlib import Path
 import sqlite3
+from unittest.mock import patch
 
 import db_improved
-from services.workout_stats import summarize_workouts
+import services.workout_stats as workout_stats
+from services.workout_stats import (
+    build_activity_calendar,
+    format_activity_calendar,
+    summarize_activity,
+    summarize_workouts,
+)
 
 
 class WorkoutStatsTests(unittest.TestCase):
@@ -71,6 +78,112 @@ class WorkoutStatsTests(unittest.TestCase):
         self.assertEqual(summarize_workouts(rows, self.today)["total_sessions"], 1)
         self.assertEqual(summarize_workouts(rows, self.today)["total_exercises"], 2)
         self.assertEqual(db.execute("SELECT COUNT(*) FROM workouts WHERE user_id=?", (7,)).fetchone()[0], 0)
+        db.close()
+
+    def test_activity_counts_sessions_not_training_days(self):
+        sessions = [
+            (self.d(-2), "s:1"),
+            (self.d(0), "s:2"),
+            (self.d(0), "s:3"),
+        ]
+        result = summarize_activity(sessions, self.today)
+        self.assertEqual(result["current_week_sessions"], 3)
+        self.assertEqual(result["days_28"], 2)
+
+    def test_current_and_previous_weeks_have_exact_monday_boundaries(self):
+        sessions = [
+            (self.d(-2), "s:current-monday"),
+            (self.d(0), "s:current-wednesday"),
+            (self.d(-9), "s:previous-monday"),
+            (self.d(-3), "s:previous-sunday"),
+            (self.d(-10), "s:older-sunday"),
+        ]
+        result = summarize_activity(sessions, self.today)
+        self.assertEqual(result["current_week_sessions"], 2)
+        self.assertEqual(result["previous_week_sessions"], 2)
+
+    def test_empty_activity_has_zero_metrics(self):
+        self.assertEqual(
+            summarize_activity([], self.today),
+            {
+                "total_sessions": 0,
+                "current_week_sessions": 0,
+                "previous_week_sessions": 0,
+                "days_28": 0,
+                "current_streak": 0,
+                "best_streak": 0,
+            },
+        )
+
+    def test_calendar_is_exactly_four_weeks_and_marks_days_once(self):
+        dates = [self.d(-27), self.d(-27), self.d(-14), self.d(0), self.d(1)]
+        weeks = build_activity_calendar(dates, self.today)
+        self.assertEqual(len(weeks), 4)
+        self.assertTrue(all(len(week) == 7 for week in weeks))
+        self.assertEqual(sum(trained for week in weeks for _, trained in week), 3)
+        self.assertEqual(weeks[0][0][0], self.today - timedelta(days=27))
+        self.assertEqual(weeks[-1][-1][0], self.today)
+
+    def test_calendar_localizes_and_marks_unrecorded_days_neutrally(self):
+        uk = format_activity_calendar([self.d(0)], self.today, "uk")
+        en = format_activity_calendar([self.d(0)], self.today, "en")
+        self.assertIn("Тиждень 1", uk)
+        self.assertIn("день без запису", uk)
+        self.assertIn("Week 1", en)
+        self.assertIn("no workout recorded", en)
+        week_rows = [line for line in uk.splitlines() if line.startswith("Тиждень ")]
+        self.assertEqual(sum(line.count("●") for line in week_rows), 1)
+
+    def test_streak_uses_unique_dates_and_ends_on_today_or_yesterday(self):
+        sessions = [
+            (self.d(-2), "s:1"),
+            (self.d(-1), "s:2"),
+            (self.d(-1), "s:3"),
+            (self.d(0), "legacy:4"),
+            (self.d(2), "future:5"),
+        ]
+        result = summarize_activity(sessions, self.today)
+        self.assertEqual(result["current_streak"], 3)
+        self.assertEqual(result["best_streak"], 3)
+        self.assertEqual(result["days_28"], 3)
+
+        old = summarize_activity([(self.d(-3), "s:old")], self.today)
+        self.assertEqual(old["current_streak"], 0)
+
+    def test_database_session_rows_do_not_double_count_exercises(self):
+        db = sqlite3.connect(":memory:")
+        db.executescript("""
+            CREATE TABLE workout_sessions (id INTEGER PRIMARY KEY, user_id INTEGER, date TEXT);
+            CREATE TABLE workouts (
+                id INTEGER PRIMARY KEY, user_id INTEGER, date TEXT, session_id INTEGER
+            );
+        """)
+        db.executemany("INSERT INTO workout_sessions VALUES (?, ?, ?)", [
+            (1, 7, self.d(0)),
+            (2, 7, self.d(0)),
+        ])
+        db.executemany("INSERT INTO workouts VALUES (?, ?, ?, ?)", [
+            (1, 7, self.d(0), 1),
+            (2, 7, self.d(0), 1),
+            (3, 7, self.d(0), 2),
+            (4, 7, self.d(-1), None),
+            (5, 7, self.d(-1), None),
+            (6, 7, self.d(-2), 99),
+            (7, 7, self.d(-2), 99),
+            (8, 8, self.d(0), None),
+        ])
+
+        with patch.object(
+            workout_stats,
+            "fetch_all",
+            side_effect=lambda query, params: db.execute(query, params).fetchall(),
+        ):
+            rows = workout_stats.load_workout_sessions(7)
+        result = summarize_activity(rows, self.today)
+
+        self.assertEqual(result["total_sessions"], 5)
+        self.assertEqual(result["current_week_sessions"], 5)
+        self.assertEqual(result["days_28"], 3)
         db.close()
 
 

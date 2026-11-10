@@ -1,5 +1,5 @@
 """Streak system: update, calculate, and reward consecutive workout days."""
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 STREAK_THRESHOLD_DAYS = 1   # gap of <= 1 day preserves the streak
 STREAK_BONUS_COINS = {
@@ -33,7 +33,11 @@ def _valid_workout_dates(workout_dates: list[str]) -> set:
     return result
 
 
-def calculate_streak(last_workout_date: str | None, workout_dates: list[str]) -> int:
+def calculate_streak(
+    last_workout_date: str | None,
+    workout_dates: list[str],
+    today: date | None = None,
+) -> int:
     """Calculate the active streak from unique calendar dates.
 
     ``last_workout_date`` remains in the public signature for compatibility;
@@ -44,7 +48,10 @@ def calculate_streak(last_workout_date: str | None, workout_dates: list[str]) ->
     if not dates:
         return 0
 
-    today = datetime.now().date()
+    today = today or datetime.now().date()
+    dates = {workout_date for workout_date in dates if workout_date <= today}
+    if not dates:
+        return 0
     latest = max(dates)
     if latest < today - timedelta(days=STREAK_THRESHOLD_DAYS):
         return 0
