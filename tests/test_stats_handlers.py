@@ -27,7 +27,10 @@ class StatsHandlerTests(unittest.IsolatedAsyncioTestCase):
             {"stats_activity", "stats_charts", "stats_records", "stats_history"},
         )
         self.assertIn("Активність", markup.inline_keyboard[0][0].text)
-        self.assertIn("Activity", stats._dashboard_keyboard("en").inline_keyboard[0][0].text)
+        self.assertIn("🏅 Досягнення", markup.inline_keyboard[1][0].text)
+        english = stats._dashboard_keyboard("en")
+        self.assertIn("Activity", english.inline_keyboard[0][0].text)
+        self.assertIn("🏅 Achievements", english.inline_keyboard[1][0].text)
 
     def test_empty_dashboard_displays_zeroes_and_level_progress(self):
         text = stats._dashboard_text({
@@ -42,8 +45,8 @@ class StatsHandlerTests(unittest.IsolatedAsyncioTestCase):
             "xp": 0,
             "last_achievement_key": None,
         }, "en")
-        self.assertIn("This week: 0 workouts", text)
-        self.assertIn("unchanged", text)
+        self.assertIn("This week so far: 0 workouts", text)
+        self.assertIn("no change", text)
         self.assertIn("0/100 XP", text)
 
     def test_week_comparison_handles_increase_and_decrease(self):
@@ -62,6 +65,69 @@ class StatsHandlerTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("↑ +2", stats._dashboard_text(data, "en"))
         data["activity"]["current_week_sessions"] = 1
         self.assertIn("↓ by 1", stats._dashboard_text(data, "en"))
+
+    async def test_empty_profile_gets_friendly_call_to_action(self):
+        message = SimpleNamespace(
+            from_user=SimpleNamespace(id=7),
+            answer=AsyncMock(),
+        )
+        empty_data = {
+            "activity": {
+                "total_sessions": 0,
+                "current_week_sessions": 0,
+                "previous_week_sessions": 0,
+                "current_streak": 0,
+                "best_streak": 0,
+                "days_28": 0,
+            },
+            "level": 1,
+            "xp": 0,
+            "last_achievement_key": None,
+        }
+        with patch.object(stats, "_language_for", return_value="uk"), patch.object(
+            stats, "load_stats_data", return_value=empty_data
+        ):
+            await stats.send_stats(message)
+
+        text = message.answer.await_args.args[0]
+        self.assertIn("першого тренування", text)
+        self.assertNotIn("Цього тижня: 0", text)
+        markup = message.answer.await_args.kwargs["reply_markup"]
+        self.assertEqual(markup.inline_keyboard[0][0].callback_data, "welcome_workout")
+        self.assertIn("Записати тренування", markup.inline_keyboard[0][0].text)
+
+    async def test_profile_with_workouts_keeps_dashboard_and_navigation(self):
+        message = SimpleNamespace(
+            from_user=SimpleNamespace(id=7),
+            answer=AsyncMock(),
+        )
+        data = {
+            "activity": {
+                "total_sessions": 1,
+                "current_week_sessions": 1,
+                "previous_week_sessions": 0,
+                "current_streak": 1,
+                "best_streak": 1,
+                "days_28": 1,
+            },
+            "level": 2,
+            "xp": 100,
+            "last_achievement_key": None,
+        }
+        with patch.object(stats, "_language_for", return_value="en"), patch.object(
+            stats, "load_stats_data", return_value=data
+        ):
+            await stats.send_stats(message)
+
+        text = message.answer.await_args.args[0]
+        self.assertIn("This week so far: 1 workout", text)
+        self.assertIn("Active days in 28 days: 1", text)
+        self.assertIn("Streak: 1 day", text)
+        markup = message.answer.await_args.kwargs["reply_markup"]
+        self.assertEqual(
+            {button.callback_data for row in markup.inline_keyboard for button in row},
+            {"stats_activity", "stats_charts", "stats_records", "stats_history"},
+        )
 
     async def test_activity_callback_renders_28_day_calendar(self):
         today = date.today()
@@ -111,7 +177,8 @@ class StatsHandlerTests(unittest.IsolatedAsyncioTestCase):
         text = callback.message.edit_text.await_args.args[0]
         self.assertIn("First Step", text)
         self.assertIn("82.5 kg", text)
-        self.assertIn("not inferred", text)
+        self.assertIn("Achievements", text)
+        self.assertNotIn("Records", text)
 
     async def test_history_callback_delegates_to_existing_history_renderer(self):
         import bot_legacy

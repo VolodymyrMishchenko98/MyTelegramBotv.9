@@ -81,20 +81,54 @@ def format_activity_calendar(
     lang: str = "uk",
 ) -> str:
     """Render a compact, localized 4x7 activity calendar."""
+    today = today or date.today()
     weeks = build_activity_calendar(workout_dates, today)
     week_label = "Тиждень" if lang == "uk" else "Week"
+    weekday_labels = (
+        ("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд")
+        if lang == "uk"
+        else ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+    )
+    month_labels = (
+        ("січ", "лют", "бер", "кві", "тра", "чер", "лип", "сер", "вер", "жов", "лис", "гру")
+        if lang == "uk"
+        else ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+    )
     marker = (
         "● — тренування · — день без запису"
         if lang == "uk"
         else "● — workout · — no workout recorded"
     )
+    first_day = weeks[0][0][0]
+    headers = [
+        weekday_labels[(first_day.weekday() + offset) % 7]
+        for offset in range(7)
+    ]
     lines = [
-        f"{week_label} {index}: " + " ".join(
+        " ".join(headers)
+    ]
+    for index, week in enumerate(weeks, 1):
+        start, end = week[0][0], week[-1][0]
+        start_label = f"{start.day:02d} {month_labels[start.month - 1]}"
+        end_label = f"{end.day:02d} {month_labels[end.month - 1]}"
+        date_range = (
+            f"{start.day:02d}–{end.day:02d} {month_labels[end.month - 1]}"
+            if start.month == end.month
+            else f"{start_label}–{end_label}"
+        )
+        cells = [
             f"{day.day:02d}{'●' if trained else '·'}"
             for day, trained in week
+        ]
+        today_index = next(
+            (offset for offset, (day, _) in enumerate(week) if day == today),
+            None,
         )
-        for index, week in enumerate(weeks, 1)
-    ]
+        if today_index is not None:
+            cells[today_index] = f"<b>{cells[today_index]}</b>"
+        lines.append(
+            f"{week_label} {index} ({date_range}): " + " ".join(cells)
+        )
     return "\n".join((*lines, marker))
 
 
@@ -114,19 +148,22 @@ def summarize_activity(
 
     current_week_start = today - timedelta(days=today.weekday())
     previous_week_start = current_week_start - timedelta(days=7)
+    elapsed_days = today.weekday() + 1
+    current_period_end = current_week_start + timedelta(days=elapsed_days)
+    previous_period_end = previous_week_start + timedelta(days=elapsed_days)
     recent_start = today - timedelta(days=27)
 
     valid_dates = [workout_date for workout_date in sessions.values() if workout_date <= today]
     recent_dates = {workout_date for workout_date in valid_dates if workout_date >= recent_start}
 
     return {
-        "total_sessions": len(sessions),
+        "total_sessions": len(valid_dates),
         "current_week_sessions": sum(
-            current_week_start <= workout_date <= today
+            current_week_start <= workout_date < current_period_end
             for workout_date in sessions.values()
         ),
         "previous_week_sessions": sum(
-            previous_week_start <= workout_date < current_week_start
+            previous_week_start <= workout_date < previous_period_end
             for workout_date in sessions.values()
         ),
         "days_28": len(recent_dates),
@@ -194,6 +231,7 @@ def summarize_workouts(
     today = today or date.today()
     current_week_start = today - timedelta(days=today.weekday())
     previous_week_start = current_week_start - timedelta(days=7)
+    previous_period_end = previous_week_start + timedelta(days=today.weekday() + 1)
     month_start = today.replace(day=1)
 
     def in_range(value: str, start: date, end: date) -> bool:
@@ -204,7 +242,7 @@ def summarize_workouts(
         return start <= current < end
 
     current_week = [row for row in rows if in_range(row[0], current_week_start, today + timedelta(days=1))]
-    previous_week = [row for row in rows if in_range(row[0], previous_week_start, current_week_start)]
+    previous_week = [row for row in rows if in_range(row[0], previous_week_start, previous_period_end)]
     current_month = [row for row in rows if in_range(row[0], month_start, today + timedelta(days=1))]
 
     popular = Counter()

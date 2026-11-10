@@ -46,6 +46,16 @@ def _pair(lang: str, uk: str, en: str) -> str:
     return uk if lang == "uk" else en
 
 
+def _ukrainian_plural(value: int, one: str, few: str, many: str) -> str:
+    last_two = value % 100
+    last = value % 10
+    if last == 1 and last_two != 11:
+        return one
+    if 2 <= last <= 4 and not 12 <= last_two <= 14:
+        return few
+    return many
+
+
 def _dashboard_keyboard(lang: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [
@@ -60,7 +70,7 @@ def _dashboard_keyboard(lang: str) -> InlineKeyboardMarkup:
         ],
         [
             InlineKeyboardButton(
-                text=_pair(lang, "🏆 Рекорди", "🏆 Records"),
+                text=_pair(lang, "🏅 Досягнення", "🏅 Achievements"),
                 callback_data="stats_records",
             ),
             InlineKeyboardButton(
@@ -91,15 +101,15 @@ def _dashboard_text(data: dict, lang: str) -> str:
     activity = data["activity"]
     delta = activity["current_week_sessions"] - activity["previous_week_sessions"]
     if delta > 0:
-        comparison = _pair(lang, f"↑ +{delta} до попереднього тижня", f"↑ +{delta} vs last week")
+        comparison = f"↑ +{delta}"
     elif delta < 0:
         comparison = _pair(
             lang,
-            f"↓ на {abs(delta)} до попереднього тижня",
-            f"↓ by {abs(delta)} vs last week",
+            f"↓ на {abs(delta)}",
+            f"↓ by {abs(delta)}",
         )
     else:
-        comparison = _pair(lang, "→ без змін до попереднього тижня", "→ unchanged vs last week")
+        comparison = _pair(lang, "→ без змін", "→ no change")
 
     level = data["level"]
     xp = data["xp"]
@@ -119,22 +129,42 @@ def _dashboard_text(data: dict, lang: str) -> str:
 
     streak_days = activity["current_streak"]
     best_streak = activity["best_streak"]
-    day_word = _pair(lang, "дн.", "days")
+    current_day_word = (
+        _ukrainian_plural(streak_days, "день", "дні", "днів")
+        if lang == "uk"
+        else "day" if streak_days == 1 else "days"
+    )
+    best_day_word = (
+        _ukrainian_plural(best_streak, "день", "дні", "днів")
+        if lang == "uk"
+        else "day" if best_streak == 1 else "days"
+    )
+    workout_count = activity["current_week_sessions"]
+    workout_word = (
+        _ukrainian_plural(workout_count, "тренування", "тренування", "тренувань")
+        if lang == "uk"
+        else "workout" if workout_count == 1 else "workouts"
+    )
     lines = [
         _pair(
             lang,
-            f"🏋️ Цього тижня: {activity['current_week_sessions']} трен. ({comparison})",
-            f"🏋️ This week: {activity['current_week_sessions']} workouts ({comparison})",
+            f"🏋️ Цього тижня: {workout_count} {workout_word}",
+            f"🏋️ This week so far: {workout_count} {workout_word}",
         ),
         _pair(
             lang,
-            f"🔥 Серія: {streak_days} {day_word} · рекорд: {best_streak} {day_word}",
-            f"🔥 Streak: {streak_days} {day_word} · best: {best_streak} {day_word}",
+            f"До тих самих днів минулого тижня: {comparison}",
+            f"Compared with same days last week: {comparison}",
         ),
         _pair(
             lang,
             f"📅 Активні дні за 28 днів: {activity['days_28']}",
             f"📅 Active days in 28 days: {activity['days_28']}",
+        ),
+        _pair(
+            lang,
+            f"🔥 Серія: {streak_days} {current_day_word} · рекорд: {best_streak} {best_day_word}",
+            f"🔥 Streak: {streak_days} {current_day_word} · best: {best_streak} {best_day_word}",
         ),
         _pair(lang, f"⭐ Рівень {level} · {xp} XP", f"⭐ Level {level} · {xp} XP"),
         progress,
@@ -145,6 +175,27 @@ def _dashboard_text(data: dict, lang: str) -> str:
     return style_block("Моя статистика" if lang == "uk" else "My stats", "\n".join(lines), icon="📊")
 
 
+def _empty_stats_text(lang: str) -> str:
+    return style_block(
+        _pair(lang, "Моя статистика", "My stats"),
+        _pair(
+            lang,
+            "Після першого тренування тут з’являться тижневий прогрес, активні дні, серія та рівень.\n\nПочни з першого тренування!",
+            "Your weekly progress, active days, streak, and level will appear here after your first workout.\n\nLog your first workout to get started!",
+        ),
+        icon="📊",
+    )
+
+
+def _empty_stats_keyboard(lang: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(
+            text=_pair(lang, "💪 Записати тренування", "💪 Record a workout"),
+            callback_data="welcome_workout",
+        )
+    ]])
+
+
 async def send_stats(message: Message, user_id: int | None = None) -> None:
     """Send the dashboard, also used by the existing welcome-menu callback."""
     uid = user_id or message.from_user.id
@@ -153,6 +204,13 @@ async def send_stats(message: Message, user_id: int | None = None) -> None:
         asyncio.to_thread(_language_for, uid),
         asyncio.to_thread(load_stats_data, uid, today),
     )
+    if data["activity"]["total_sessions"] == 0:
+        await message.answer(
+            _empty_stats_text(lang),
+            reply_markup=_empty_stats_keyboard(lang),
+            parse_mode="HTML",
+        )
+        return
     await message.answer(
         _dashboard_text(data, lang),
         reply_markup=_dashboard_keyboard(lang),
@@ -191,6 +249,7 @@ async def stats_activity(callback: CallbackQuery) -> None:
     await callback.message.edit_text(
         f"{range_text}\n{count_text}\n\n{calendar}",
         reply_markup=_back_keyboard(lang),
+        parse_mode="HTML",
     )
 
 
@@ -231,13 +290,8 @@ async def stats_records(callback: CallbackQuery) -> None:
         lines.append(_pair(lang, f"⚖️ Найбільша записана вага тіла: {weight}", f"⚖️ Highest recorded body weight: {weight}"))
     elif not title:
         lines.append(_pair(lang, "Досягнень і записів ваги ще немає.", "No achievements or weight entries yet."))
-    lines.append(_pair(
-        lang,
-        "Рекорди вправ не визначаються: вправи збережені як текст.",
-        "Exercise PRs are not inferred because exercises are stored as text.",
-    ))
     await callback.message.edit_text(
-        style_block("Рекорди" if lang == "uk" else "Records", "\n".join(lines), icon="🏆"),
+        style_block("Досягнення" if lang == "uk" else "Achievements", "\n".join(lines), icon="🏅"),
         reply_markup=_back_keyboard(lang),
         parse_mode="HTML",
     )

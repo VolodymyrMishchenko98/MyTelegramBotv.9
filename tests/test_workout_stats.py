@@ -35,8 +35,8 @@ class WorkoutStatsTests(unittest.TestCase):
     def test_week_boundaries_do_not_overlap(self):
         rows = [
             (self.d(-2), "Current week", 1),  # Monday 2026-11-09
-            (self.d(-7), "Previous week", 2),
-            (self.d(-8), "Previous week", None),
+            (self.d(-7), "Previous Wednesday", 2),
+            (self.d(-8), "Previous Tuesday", None),
             (self.d(-10), "Older", None),
         ]
         result = summarize_workouts(rows, self.today)
@@ -95,12 +95,53 @@ class WorkoutStatsTests(unittest.TestCase):
             (self.d(-2), "s:current-monday"),
             (self.d(0), "s:current-wednesday"),
             (self.d(-9), "s:previous-monday"),
+            (self.d(-7), "s:previous-wednesday"),
             (self.d(-3), "s:previous-sunday"),
             (self.d(-10), "s:older-sunday"),
         ]
         result = summarize_activity(sessions, self.today)
         self.assertEqual(result["current_week_sessions"], 2)
         self.assertEqual(result["previous_week_sessions"], 2)
+
+    def test_week_comparison_on_monday_compares_only_mondays(self):
+        monday = date(2026, 11, 9)
+        sessions = [
+            (monday.isoformat(), "s:current"),
+            ("2026-11-02", "s:previous"),
+            ("2026-11-03", "s:previous-tuesday"),
+            ("2026-11-10", "s:future"),
+        ]
+        result = summarize_activity(sessions, monday)
+        self.assertEqual(result["current_week_sessions"], 1)
+        self.assertEqual(result["previous_week_sessions"], 1)
+        self.assertEqual(result["total_sessions"], 3)
+
+    def test_week_comparison_midweek_compares_equal_elapsed_days(self):
+        wednesday = date(2026, 11, 11)
+        sessions = [
+            ("2026-11-09", "s:current-monday"),
+            ("2026-11-11", "s:current-wednesday"),
+            ("2026-11-02", "s:previous-monday"),
+            ("2026-11-04", "s:previous-wednesday"),
+            ("2026-11-05", "s:previous-thursday"),
+        ]
+        result = summarize_activity(sessions, wednesday)
+        self.assertEqual(result["current_week_sessions"], 2)
+        self.assertEqual(result["previous_week_sessions"], 2)
+
+    def test_week_comparison_on_sunday_compares_complete_weeks(self):
+        sunday = date(2026, 11, 15)
+        sessions = [
+            ("2026-11-09", "s:current-monday"),
+            ("2026-11-15", "s:current-sunday"),
+            ("2026-11-02", "s:previous-monday"),
+            ("2026-11-08", "s:previous-sunday"),
+            ("2026-11-16", "s:future"),
+        ]
+        result = summarize_activity(sessions, sunday)
+        self.assertEqual(result["current_week_sessions"], 2)
+        self.assertEqual(result["previous_week_sessions"], 2)
+        self.assertEqual(result["total_sessions"], 4)
 
     def test_empty_activity_has_zero_metrics(self):
         self.assertEqual(
@@ -127,12 +168,28 @@ class WorkoutStatsTests(unittest.TestCase):
     def test_calendar_localizes_and_marks_unrecorded_days_neutrally(self):
         uk = format_activity_calendar([self.d(0)], self.today, "uk")
         en = format_activity_calendar([self.d(0)], self.today, "en")
+        self.assertIn("Пн", uk)
         self.assertIn("Тиждень 1", uk)
         self.assertIn("день без запису", uk)
+        self.assertIn("Mon", en)
         self.assertIn("Week 1", en)
         self.assertIn("no workout recorded", en)
         week_rows = [line for line in uk.splitlines() if line.startswith("Тиждень ")]
         self.assertEqual(sum(line.count("●") for line in week_rows), 1)
+
+    def test_calendar_labels_month_transition_and_bolds_today(self):
+        today = date(2026, 11, 3)
+        rendered = format_activity_calendar(["2026-11-03"], today, "en")
+        rows = [line for line in rendered.splitlines() if line.startswith("Week ")]
+        self.assertEqual(len(rows), 4)
+        self.assertIn("28 Oct–03 Nov", rows[-1])
+        self.assertIn("<b>03●</b>", rows[-1])
+        self.assertIn("Wed", rendered)
+
+    def test_calendar_bolds_today_even_without_a_workout(self):
+        rendered = format_activity_calendar([], date(2026, 11, 3), "en")
+        self.assertIn("<b>03·</b>", rendered)
+        self.assertIn("no workout recorded", rendered)
 
     def test_streak_uses_unique_dates_and_ends_on_today_or_yesterday(self):
         sessions = [
