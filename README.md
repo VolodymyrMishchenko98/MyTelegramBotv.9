@@ -108,16 +108,16 @@ Use `/change_language` to switch the bot between Ukrainian and English; these ar
 | `/program` | Створити, переглянути або архівувати програму тренувань |
 | `/today` | Переглянути активність за сьогодні |
 | `/history` | Переглянути історію тренувань |
-| `/stats` | Переглянути статистику тренувань |
-| `/weight` | Записати вагу тіла |
+| `/stats` | Переглянути прогрес, графіки, рівень, досягнення й історію |
+| `/weight` | Додати вагу, переглянути записи або графік |
 | `/weight_stats` | Переглянути останні записи ваги |
 | `/level` | Переглянути рівень і XP |
 | `/chart` | Переглянути графіки прогресу |
 | `/profile` | Переглянути профіль |
 | `/edit_profile` | Змінити профіль |
 | `/profile_visibility` | Налаштувати видимість полів профілю |
-| `/set_goal` | Задати тижневу ціль |
-| `/goal` | Переглянути тижневу ціль |
+| `/set_goal` | Задати або змінити тижневу ціль |
+| `/goal` | Переглянути тижневу ціль і прогрес |
 | `/suggest` | Запропонувати тренування; потрібна мета в профілі |
 | `/daily` | Переглянути щоденне завдання |
 | `/challenge` | Переглянути челендж дня |
@@ -145,16 +145,16 @@ Use `/change_language` to switch the bot between Ukrainian and English; these ar
 | `/program` | Create, view, or archive a training plan |
 | `/today` | View today's activity |
 | `/history` | View workout history |
-| `/stats` | View workout statistics |
-| `/weight` | Record body weight |
+| `/stats` | View progress, charts, level, achievements, and history |
+| `/weight` | Add weight, view entries, or open the chart |
 | `/weight_stats` | View recent weight entries |
 | `/level` | View your level and XP |
 | `/chart` | View progress charts |
 | `/profile` | View your profile |
 | `/edit_profile` | Edit your profile |
 | `/profile_visibility` | Manage visible profile fields |
-| `/set_goal` | Set a weekly goal |
-| `/goal` | View your weekly goal |
+| `/set_goal` | Set or change your weekly goal |
+| `/goal` | View your weekly goal and progress |
 | `/suggest` | Suggest a workout; requires a profile goal |
 | `/daily` | View the daily task |
 | `/challenge` | View the daily challenge |

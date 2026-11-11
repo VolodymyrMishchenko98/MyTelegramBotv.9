@@ -604,8 +604,8 @@ BOT_COMMAND_DESCRIPTIONS = {
         "profile": "Переглянути профіль",
         "edit_profile": "Змінити профіль",
         "profile_visibility": "Налаштувати видимість полів профілю",
-        "set_goal": "Задати тижневу ціль",
-        "goal": "Переглянути тижневу ціль",
+        "set_goal": "Задати або змінити тижневу ціль",
+        "goal": "Переглянути ціль і прогрес за тиждень",
         "daily": "Щоденне завдання",
         "wallet": "Монети та інвентар",
         "shop": "Магазин предметів",
@@ -614,14 +614,14 @@ BOT_COMMAND_DESCRIPTIONS = {
         "motivate": "Мотивація",
         "tip": "Порада дня",
         "challenge": "Челендж дня",
-        "weight": "Записати вагу",
+        "weight": "Вага: додати запис, переглянути записи або графік",
         "weight_stats": "Останні записи ваги",
         "today": "Активність за сьогодні",
         "history": "Історія тренувань",
         "level": "Рівень і XP",
         "chart": "Графіки прогресу",
         "workout": "Записати тренування",
-        "stats": "Статистика тренувань",
+        "stats": "Прогрес, графіки, рівень, досягнення й історія",
         "admin": "Статистика бота (лише адмін)",
         "backup": "Резервна копія (лише адмін)",
         "reset": "Видалити дані профілю",
@@ -638,8 +638,8 @@ BOT_COMMAND_DESCRIPTIONS = {
         "profile": "View your profile",
         "edit_profile": "Edit your profile",
         "profile_visibility": "Manage visible profile fields",
-        "set_goal": "Set a weekly goal",
-        "goal": "View your weekly goal",
+        "set_goal": "Set or change your weekly goal",
+        "goal": "View your weekly goal and progress",
         "daily": "Daily task",
         "wallet": "Coins and inventory",
         "shop": "Item shop",
@@ -648,14 +648,14 @@ BOT_COMMAND_DESCRIPTIONS = {
         "motivate": "Motivation",
         "tip": "Tip of the day",
         "challenge": "Daily challenge",
-        "weight": "Record body weight",
+        "weight": "Weight: add an entry, view entries, or open chart",
         "weight_stats": "Recent weight entries",
         "today": "Today's activity",
         "history": "Workout history",
         "level": "Level and XP",
         "chart": "Progress charts",
         "workout": "Record a workout",
-        "stats": "Workout statistics",
+        "stats": "Progress, charts, level, achievements, and history",
         "admin": "Bot statistics (admins only)",
         "backup": "Database backup (admins only)",
         "reset": "Delete profile data",
@@ -2775,11 +2775,10 @@ async def profile_toggle(callback: CallbackQuery):
 
 @dp.message(Command("set_goal"))
 async def set_goal(message: Message):
-    lang = get_user_language(message.from_user.id)
-    set_user_state(message.from_user.id, "weekly_goal")
-    await message.answer(
-        t_pair(lang, "Введи мету на тиждень (кількість днів тренувань)\nПриклад: 4", "Enter weekly goal (number of workout days)\nExample: 4"),
-        reply_markup=add_home_button(None, lang),
+    await prompt_weekly_goal(
+        message,
+        message.from_user.id,
+        get_user_language(message.from_user.id),
     )
 
 
@@ -2800,7 +2799,7 @@ async def goal(message: Message):
         db.close()
         await message.answer(
             t_pair(lang, "Мета не задана. Використовуй /set_goal", "Goal is not set. Use /set_goal"),
-            reply_markup=add_home_button(None, lang),
+            reply_markup=weekly_goal_keyboard(lang),
         )
         return
 
@@ -2833,8 +2832,33 @@ async def goal(message: Message):
             icon="🗓️"
         ),
         parse_mode="HTML",
+        reply_markup=weekly_goal_keyboard(lang),
+    )
+
+
+def weekly_goal_keyboard(lang: str) -> InlineKeyboardMarkup:
+    return add_home_button(InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(
+            text=t_pair(lang, "✏️ Змінити ціль", "✏️ Change goal"),
+            callback_data="weekly_goal_set",
+        )
+    ]]), lang)
+
+
+async def prompt_weekly_goal(message: Message, user_id: int, lang: str, *, edit: bool = False) -> None:
+    set_user_state(user_id, "weekly_goal")
+    display = message.edit_text if edit else message.answer
+    await display(
+        t_pair(lang, "Введи мету на тиждень (кількість днів тренувань)\nПриклад: 4", "Enter weekly goal (number of workout days)\nExample: 4"),
         reply_markup=add_home_button(None, lang),
     )
+
+
+@dp.callback_query(F.data == "weekly_goal_set")
+async def weekly_goal_set(callback: CallbackQuery) -> None:
+    lang = get_user_language(callback.from_user.id)
+    await callback.answer()
+    await prompt_weekly_goal(callback.message, callback.from_user.id, lang, edit=True)
 
 
 @dp.message(Command("daily"))
@@ -3639,29 +3663,66 @@ async def workout_note_skip(callback: CallbackQuery):
 @dp.message(Command("weight"))
 async def weight(message: Message):
     lang = get_user_language(message.from_user.id)
-    set_user_state(message.from_user.id, "weight")
     await message.answer(
+        t_pair(lang, "⚖️ Обери дію:", "⚖️ Choose an action:"),
+        reply_markup=weight_keyboard(lang),
+    )
+
+
+def weight_keyboard(lang: str) -> InlineKeyboardMarkup:
+    return add_home_button(InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text=t_pair(lang, "➕ Додати запис ваги", "➕ Add weight entry"),
+            callback_data="weight_add",
+        )],
+        [InlineKeyboardButton(
+            text=t_pair(lang, "📋 Останні записи", "📋 Recent entries"),
+            callback_data="weight_recent",
+        )],
+        [InlineKeyboardButton(
+            text=t_pair(lang, "📈 Графік ваги", "📈 Weight chart"),
+            callback_data="chart_weight",
+        )],
+    ]), lang)
+
+
+async def prompt_weight(message: Message, user_id: int, lang: str, *, edit: bool = False) -> None:
+    set_user_state(user_id, "weight")
+    display = message.edit_text if edit else message.answer
+    await display(
         t_pair(lang, "Введи вагу (кг)", "Enter weight (kg)"),
         reply_markup=add_home_button(None, lang),
     )
 
 
+@dp.callback_query(F.data == "weight_add")
+async def weight_add(callback: CallbackQuery):
+    lang = get_user_language(callback.from_user.id)
+    await callback.answer()
+    await prompt_weight(callback.message, callback.from_user.id, lang, edit=True)
+
+
 @dp.message(Command("weight_stats"))
 async def weight_stats(message: Message):
-    lang = get_user_language(message.from_user.id)
+    await send_weight_stats(message, message.from_user.id)
+
+
+async def send_weight_stats(message: Message, user_id: int, *, edit: bool = False) -> None:
+    lang = get_user_language(user_id)
     db = get_db()
     cur = db.cursor()
     cur.execute(
         "SELECT weight, date FROM weights WHERE user_id=? ORDER BY date DESC LIMIT 7",
-        (message.from_user.id,)
+        (user_id,)
     )
     rows = cur.fetchall()
     db.close()
 
+    display = message.edit_text if edit else message.answer
     if not rows:
-        await message.answer(
+        await display(
             t_pair(lang, "Вага ще не записувалася.", "No weight entries yet."),
-            reply_markup=add_home_button(None, lang),
+            reply_markup=weight_keyboard(lang),
         )
         return
 
@@ -3669,7 +3730,13 @@ async def weight_stats(message: Message):
     for w, d in rows:
         text += f"{d}: {w} кг\n"
 
-    await message.answer(text, reply_markup=add_home_button(None, lang))
+    await display(text, reply_markup=weight_keyboard(lang))
+
+
+@dp.callback_query(F.data == "weight_recent")
+async def weight_recent(callback: CallbackQuery):
+    await callback.answer()
+    await send_weight_stats(callback.message, callback.from_user.id, edit=True)
 
 
 # ---------- TODAY ----------
@@ -4134,7 +4201,10 @@ async def history_back(callback: CallbackQuery):
 
 @dp.message(Command("level"))
 async def level_cmd(message: Message):
-    uid = message.from_user.id
+    await send_level(message, message.from_user.id)
+
+
+async def send_level(message: Message, uid: int, *, edit: bool = False) -> None:
     lang = get_user_language(uid)
     ensure_user(uid)
     xp_info  = get_user_xp_level(uid)
@@ -4195,14 +4265,17 @@ async def level_cmd(message: Message):
 
     body = "\n".join(lines)
 
-    await message.answer(
+    from handlers.stats import _back_keyboard
+
+    display = message.edit_text if edit else message.answer
+    await display(
         style_block(
             t_pair(lang, "Рівень гравця", "Player Level"),
             body,
             icon="🏆"
         ),
         parse_mode="HTML",
-        reply_markup=add_home_button(None, lang),
+        reply_markup=_back_keyboard(lang),
     )
 
 

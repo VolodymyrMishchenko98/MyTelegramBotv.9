@@ -78,6 +78,12 @@ def _dashboard_keyboard(lang: str) -> InlineKeyboardMarkup:
                 callback_data="stats_history",
             ),
         ],
+        [
+            InlineKeyboardButton(
+                text=_pair(lang, "⭐ Рівень і XP", "⭐ Level and XP"),
+                callback_data="stats_level",
+            ),
+        ],
     ]), lang)
 
 
@@ -188,12 +194,13 @@ def _empty_stats_text(lang: str) -> str:
 
 
 def _empty_stats_keyboard(lang: str) -> InlineKeyboardMarkup:
+    dashboard = _dashboard_keyboard(lang)
     return add_home_button(InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(
             text=_pair(lang, "💪 Записати тренування", "💪 Record a workout"),
             callback_data="welcome_workout",
         )
-    ]]), lang)
+    ], *dashboard.inline_keyboard[:-1]]), lang)
 
 
 async def send_stats(
@@ -313,6 +320,16 @@ async def stats_history(callback: CallbackQuery) -> None:
     from bot_legacy import _history_list_message
 
     await _history_list_message(callback, 0, callback.from_user.id)
+
+
+@router.callback_query(F.data == "stats_level")
+async def stats_level(callback: CallbackQuery) -> None:
+    await callback.answer()
+    if callback.message is None:
+        return
+    from bot_legacy import send_level
+
+    await send_level(callback.message, callback.from_user.id, edit=True)
 
 
 @router.callback_query(F.data == "stats_home")

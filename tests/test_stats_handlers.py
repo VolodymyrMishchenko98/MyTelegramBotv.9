@@ -24,7 +24,7 @@ class StatsHandlerTests(unittest.IsolatedAsyncioTestCase):
         }
         self.assertEqual(
             callback_data,
-            {"stats_activity", "stats_charts", "stats_records", "stats_history", "welcome_menu"},
+            {"stats_activity", "stats_charts", "stats_records", "stats_history", "stats_level", "welcome_menu"},
         )
         self.assertIn("Активність", markup.inline_keyboard[0][0].text)
         self.assertIn("🏅 Досягнення", markup.inline_keyboard[1][0].text)
@@ -126,7 +126,7 @@ class StatsHandlerTests(unittest.IsolatedAsyncioTestCase):
         markup = message.answer.await_args.kwargs["reply_markup"]
         self.assertEqual(
             {button.callback_data for row in markup.inline_keyboard for button in row},
-            {"stats_activity", "stats_charts", "stats_records", "stats_history", "welcome_menu"},
+            {"stats_activity", "stats_charts", "stats_records", "stats_history", "stats_level", "welcome_menu"},
         )
 
     async def test_activity_callback_renders_28_day_calendar(self):
