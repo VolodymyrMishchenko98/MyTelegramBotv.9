@@ -14,7 +14,7 @@ from aiogram.types import (
     Message,
 )
 
-from handlers.keyboards import chart_keyboard, style_block
+from handlers.keyboards import add_home_button, chart_keyboard, style_block
 from services.achievements import ACHIEVEMENTS
 from services.workout_stats import (
     format_activity_calendar,
@@ -57,7 +57,7 @@ def _ukrainian_plural(value: int, one: str, few: str, many: str) -> str:
 
 
 def _dashboard_keyboard(lang: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[
+    return add_home_button(InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(
                 text=_pair(lang, "📅 Активність", "📅 Activity"),
@@ -78,16 +78,16 @@ def _dashboard_keyboard(lang: str) -> InlineKeyboardMarkup:
                 callback_data="stats_history",
             ),
         ],
-    ])
+    ]), lang)
 
 
 def _back_keyboard(lang: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[[
+    return add_home_button(InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(
             text=_pair(lang, "⬅️ До статистики", "⬅️ Back to stats"),
             callback_data="stats_home",
         )
-    ]])
+    ]]), lang)
 
 
 def _achievement_title(key: str | None, lang: str) -> str | None:
@@ -188,15 +188,20 @@ def _empty_stats_text(lang: str) -> str:
 
 
 def _empty_stats_keyboard(lang: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[[
+    return add_home_button(InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(
             text=_pair(lang, "💪 Записати тренування", "💪 Record a workout"),
             callback_data="welcome_workout",
         )
-    ]])
+    ]]), lang)
 
 
-async def send_stats(message: Message, user_id: int | None = None) -> None:
+async def send_stats(
+    message: Message,
+    user_id: int | None = None,
+    *,
+    edit: bool = False,
+) -> None:
     """Send the dashboard, also used by the existing welcome-menu callback."""
     uid = user_id or message.from_user.id
     today = date.today()
@@ -205,13 +210,15 @@ async def send_stats(message: Message, user_id: int | None = None) -> None:
         asyncio.to_thread(load_stats_data, uid, today),
     )
     if data["activity"]["total_sessions"] == 0:
-        await message.answer(
+        display = message.edit_text if edit else message.answer
+        await display(
             _empty_stats_text(lang),
             reply_markup=_empty_stats_keyboard(lang),
             parse_mode="HTML",
         )
         return
-    await message.answer(
+    display = message.edit_text if edit else message.answer
+    await display(
         _dashboard_text(data, lang),
         reply_markup=_dashboard_keyboard(lang),
         parse_mode="HTML",
@@ -267,6 +274,7 @@ async def stats_charts(callback: CallbackQuery) -> None:
             callback_data="stats_home",
         )
     ])
+    chart_markup = add_home_button(chart_markup, lang)
     await callback.message.edit_text(title, reply_markup=chart_markup)
 
 
@@ -318,6 +326,13 @@ async def stats_home(callback: CallbackQuery) -> None:
         asyncio.to_thread(_language_for, uid),
         asyncio.to_thread(load_stats_data, uid, today),
     )
+    if data["activity"]["total_sessions"] == 0:
+        await callback.message.edit_text(
+            _empty_stats_text(lang),
+            reply_markup=_empty_stats_keyboard(lang),
+            parse_mode="HTML",
+        )
+        return
     await callback.message.edit_text(
         _dashboard_text(data, lang),
         reply_markup=_dashboard_keyboard(lang),

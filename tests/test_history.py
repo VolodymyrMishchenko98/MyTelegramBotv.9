@@ -50,11 +50,12 @@ class HistoryHelpersTests(unittest.TestCase):
     def test_pagination_is_five_items_and_bounds_are_safe(self):
         rows = [{"key": f"l:{i}", "id": i, "date": "2026-01-01", "note": None, "count": 1} for i in range(7)]
         markup = bot_legacy._history_keyboard("en", 0, 2, rows[:5])
-        self.assertEqual(len(markup.inline_keyboard), 7)
-        self.assertEqual(markup.inline_keyboard[-1][0].callback_data, "history_page_1")
-        self.assertEqual(markup.inline_keyboard[-2][0].callback_data, "stats_home")
+        self.assertEqual(len(markup.inline_keyboard), 8)
+        self.assertEqual(markup.inline_keyboard[-1][0].callback_data, "welcome_menu")
+        self.assertEqual(markup.inline_keyboard[-2][0].callback_data, "history_page_1")
+        self.assertEqual(markup.inline_keyboard[-3][0].callback_data, "stats_home")
         markup = bot_legacy._history_keyboard("uk", 1, 2, rows[5:])
-        self.assertEqual(markup.inline_keyboard[-1][0].callback_data, "history_page_0")
+        self.assertEqual(markup.inline_keyboard[-2][0].callback_data, "history_page_0")
 
     def test_localized_labels_and_safe_clipping(self):
         self.assertIn("статистики", bot_legacy._history_keyboard("uk", 1, 2, []).inline_keyboard[0][0].text)

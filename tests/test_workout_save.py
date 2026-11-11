@@ -14,8 +14,8 @@ class _Message:
         self.from_user = type("User", (), {"id": message_user_id})()
         self.answers = []
 
-    async def answer(self, text):
-        self.answers.append(text)
+    async def answer(self, text, **kwargs):
+        self.answers.append((text, kwargs))
 
 
 class WorkoutSaveTests(unittest.TestCase):

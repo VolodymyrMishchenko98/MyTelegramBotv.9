@@ -43,6 +43,34 @@ def style_block(title: str, body: str, icon: str = "✨") -> str:
     return f"{icon} <b>{safe_title}</b>\n━━━━━━━━━━━━━━\n{safe_body}"
 
 
+def add_home_button(
+    markup: InlineKeyboardMarkup | None,
+    lang: str,
+) -> InlineKeyboardMarkup:
+    """Keep the current screen's actions and append a consistent home action."""
+    home_label = "🏠 Головне меню" if lang == "uk" else "🏠 Main menu"
+    rows = []
+    home_found = False
+    for row in markup.inline_keyboard if markup else ():
+        copied_row = []
+        for button in row:
+            if button.callback_data == "welcome_menu":
+                copied_row.append(InlineKeyboardButton(
+                    text=home_label,
+                    callback_data="welcome_menu",
+                ))
+                home_found = True
+            else:
+                copied_row.append(button)
+        rows.append(copied_row)
+    if not home_found:
+        rows.append([InlineKeyboardButton(
+            text=home_label,
+            callback_data="welcome_menu",
+        )])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
 # ── inline keyboards ───────────────────────────────────────────────────────
 
 INLINE_LANGUAGE_KB = InlineKeyboardMarkup(inline_keyboard=[

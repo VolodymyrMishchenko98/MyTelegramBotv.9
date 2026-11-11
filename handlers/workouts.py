@@ -5,6 +5,8 @@ from aiogram import Router
 from aiogram.filters import Command
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
 
+from handlers.keyboards import add_home_button
+
 router = Router()
 
 _get_user_language = None
@@ -34,14 +36,22 @@ async def workout(message: Message):
     await start_workout_for_user(message, uid, lang)
 
 
-async def start_workout_for_user(message: Message, user_id: int, lang: str | None = None):
+async def start_workout_for_user(
+    message: Message,
+    user_id: int,
+    lang: str | None = None,
+    *,
+    edit: bool = False,
+):
     """Start the same workout flow for a command or an inline-menu action."""
     lang = lang or _get_user_language(user_id)
     _set_user_state(user_id, "workout")
-    await message.answer(
+    display = message.edit_text if edit else message.answer
+    await display(
         _t_pair(
             lang,
             "Введи тренування.\nМожна через кому:\nБіг 30 хвилин, Відтискування 4x20",
             "Enter workout.\nYou can separate by commas:\nRunning 30 min, Push ups 4x20",
-        )
+        ),
+        reply_markup=add_home_button(None, lang),
     )

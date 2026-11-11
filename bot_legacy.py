@@ -48,6 +48,7 @@ from services.achievements import check_and_award, get_user_stats
 from services.reward_notifications import build_reward_summary
 from services.reward_settlement import settle_action_rewards
 from handlers.workouts import _workout_note_keyboard
+from handlers.keyboards import add_home_button
 from game_config import (
     WORKOUT_XP_REWARD, DAILY_TASK_XP_REWARD, SUGGESTED_WORKOUT_XP, CHALLENGE_XP_REWARD,
     WORKOUT_COIN_REWARD, SUGGESTED_WORKOUT_REWARD, CHALLENGE_COIN_REWARD,
@@ -190,21 +191,21 @@ def acquire_single_instance_lock():
 
 # ---------- UI ----------
 def reminders_on_keyboard(lang: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[[
+    return add_home_button(InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(
             text=t_pair(lang, "❌ Вимкнути", "❌ Disable"),
             callback_data="reminders_off"
         )
-    ]])
+    ]]), lang)
 
 
 def reminders_off_keyboard(lang: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[[
+    return add_home_button(InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(
             text=t_pair(lang, "✅ Увімкнути", "✅ Enable"),
             callback_data="reminders_on"
         )
-    ]])
+    ]]), lang)
 
 
 def reset_keyboard(lang: str) -> InlineKeyboardMarkup:
@@ -212,39 +213,40 @@ def reset_keyboard(lang: str) -> InlineKeyboardMarkup:
         InlineKeyboardButton(text=t_pair(lang, "✅ Так", "✅ Yes"), callback_data="reset_yes"),
         InlineKeyboardButton(text=t_pair(lang, "❌ Ні", "❌ No"), callback_data="reset_no")
     ]])
+    markup = add_home_button(markup, lang)
 
 
 def suggest_keyboard(lang: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[[
+    return add_home_button(InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(text=t_pair(lang, "✅ Виконав", "✅ Done"), callback_data="suggest_done"),
         InlineKeyboardButton(text=t_pair(lang, "🔁 Інша", "🔁 Another"), callback_data="suggest_retry")
-    ]])
+    ]]), lang)
 
 
 def challenge_keyboard(lang: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[[
+    return add_home_button(InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(text=t_pair(lang, "✅ Зробив", "✅ Done"), callback_data="challenge_done"),
         InlineKeyboardButton(text=t_pair(lang, "🔁 Інший челендж", "🔁 Another challenge"), callback_data="challenge_next")
-    ]])
+    ]]), lang)
 
 
 def daily_task_keyboard(lang: str, task: dict, completed: bool, date_text: str = None) -> InlineKeyboardMarkup:
     date_text = date_text or datetime.now().strftime("%Y-%m-%d")
     if completed:
-        return InlineKeyboardMarkup(inline_keyboard=[[
+        return add_home_button(InlineKeyboardMarkup(inline_keyboard=[[
             InlineKeyboardButton(
                 text=t_pair(lang, "✅ Виконано", "✅ Completed"),
                 callback_data=f"daily_done_{date_text}"
             )
-        ]])
+        ]]), lang)
 
     unit = t_pair(lang, task["uk_unit"], task["en_unit"])
-    return InlineKeyboardMarkup(inline_keyboard=[[
+    return add_home_button(InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(
             text=f"+{task['step']} {unit}",
             callback_data=f"daily_add_{date_text}"
         )
-    ]])
+    ]]), lang)
 
 
 def shop_keyboard(lang: str) -> InlineKeyboardMarkup:
@@ -262,7 +264,7 @@ def shop_keyboard(lang: str) -> InlineKeyboardMarkup:
             )
         ])
 
-    return InlineKeyboardMarkup(inline_keyboard=rows)
+    return add_home_button(InlineKeyboardMarkup(inline_keyboard=rows), lang)
 
 
 def shop_category_keyboard(lang: str, category: str, user_level: int = 1) -> InlineKeyboardMarkup:
@@ -301,7 +303,7 @@ def shop_category_keyboard(lang: str, category: str, user_level: int = 1) -> Inl
         )
     ])
 
-    return InlineKeyboardMarkup(inline_keyboard=rows)
+    return add_home_button(InlineKeyboardMarkup(inline_keyboard=rows), lang)
 
 
 # Константи для обмежень
@@ -375,7 +377,7 @@ def profile_visibility_keyboard(lang: str, visibility: dict) -> InlineKeyboardMa
                 callback_data=f"profile_toggle_{field}"
             )
         ])
-    return InlineKeyboardMarkup(inline_keyboard=rows)
+    return add_home_button(InlineKeyboardMarkup(inline_keyboard=rows), lang)
 
 
 language_kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -1676,7 +1678,7 @@ async def reset_profile(message: Message):
     lang = get_user_language(message.from_user.id)
     await message.answer(
         t_pair(lang, "Видалити профіль і всі дані?", "Delete profile and all data?"),
-        reply_markup=reset_keyboard(lang)
+        reply_markup=add_home_button(reset_keyboard(lang), lang)
     )
 
 
@@ -1690,20 +1692,25 @@ async def reset_yes(callback: CallbackQuery):
     
     if success:
         await callback.message.edit_text(
-            t_pair(lang, "✅ Профіль повністю видалено. Дані очищені.", 
-                     "✅ Profile completely deleted. All data cleared.")
+            t_pair(lang, "✅ Профіль повністю видалено. Дані очищені.",
+                   "✅ Profile completely deleted. All data cleared."),
+            reply_markup=add_home_button(None, lang),
         )
     else:
         await callback.message.edit_text(
-            t_pair(lang, "❌ Помилка при видаленні. Спробуйте пізніше.", 
-                     "❌ Error during deletion. Try again later.")
+            t_pair(lang, "❌ Помилка при видаленні. Спробуйте пізніше.",
+                   "❌ Error during deletion. Try again later."),
+            reply_markup=add_home_button(None, lang),
         )
 
 
 @dp.callback_query(lambda c: c.data == "reset_no")
 async def reset_no(callback: CallbackQuery):
     lang = get_user_language(callback.from_user.id)
-    await callback.message.edit_text(t_pair(lang, "Скасування.", "Canceled."))
+    await callback.message.edit_text(
+        t_pair(lang, "Скасування.", "Canceled."),
+        reply_markup=add_home_button(None, lang),
+    )
 
 
 # ── EXPORT / IMPORT ----------
@@ -2165,7 +2172,8 @@ async def export_data(message: Message):
         caption=t_pair(lang, 
             "✅ Ваші дані для резервної копії. Збережіть цей файл.\n\nДля відновлення використайте /import", 
             "✅ Your backup data. Save this file.\n\nUse /import to restore"
-        )
+        ),
+        reply_markup=add_home_button(None, lang),
     )
 
 
@@ -2177,7 +2185,8 @@ async def import_prompt(message: Message):
         t_pair(lang,
             "📥 Надішліть файл JSON для імпорту даних\n\n⚠️ Увага: це перезапише ваші поточні дані!",
             "📥 Send a JSON file to import data\n\n⚠️ Warning: this will overwrite your current data!"
-        )
+        ),
+        reply_markup=add_home_button(None, lang),
     )
 
 
@@ -2191,7 +2200,10 @@ async def handle_import_file(message: Message):
         return
     
     if not message.document.file_name.endswith(".json"):
-        await message.answer(t_pair(lang, "❌ Файл має бути JSON", "❌ File must be JSON"))
+        await message.answer(
+            t_pair(lang, "❌ Файл має бути JSON", "❌ File must be JSON"),
+            reply_markup=add_home_button(None, lang),
+        )
         return
     
     # Download file
@@ -2201,7 +2213,10 @@ async def handle_import_file(message: Message):
     try:
         data = json.loads(content)
     except json.JSONDecodeError:
-        await message.answer(t_pair(lang, "❌ Невірний JSON файл", "❌ Invalid JSON file"))
+        await message.answer(
+            t_pair(lang, "❌ Невірний JSON файл", "❌ Invalid JSON file"),
+            reply_markup=add_home_button(None, lang),
+        )
         return
     
     # Confirm before import
@@ -2210,10 +2225,10 @@ async def handle_import_file(message: Message):
             "⚠️ Це перезапише всі ваші дані. Продовжити?", 
             "⚠️ This will overwrite all your data. Continue?"
         ),
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+        reply_markup=add_home_button(InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text=t_pair(lang, "✅ Так", "✅ Yes"), callback_data="import_confirm")],
             [InlineKeyboardButton(text=t_pair(lang, "❌ Ні", "❌ No"), callback_data="import_cancel")]
-        ])
+        ]), lang)
     )
     
     # Store temp data
@@ -2227,24 +2242,32 @@ async def import_confirm(callback: CallbackQuery):
     
     state = get_user_state(uid)
     if not state or not state.startswith("import_data:"):
-        await callback.message.edit_text(t_pair(lang, "❌ Дані не знайдено", "❌ Data not found"))
+        await callback.message.edit_text(
+            t_pair(lang, "❌ Дані не знайдено", "❌ Data not found"),
+            reply_markup=add_home_button(None, lang),
+        )
         return
     
     try:
         data = json.loads(state.replace("import_data:", ""))
     except json.JSONDecodeError:
-        await callback.message.edit_text(t_pair(lang, "❌ Невірний формат даних", "❌ Invalid data format"))
+        await callback.message.edit_text(
+            t_pair(lang, "❌ Невірний формат даних", "❌ Invalid data format"),
+            reply_markup=add_home_button(None, lang),
+        )
         clear_user_state(uid)
         return
     
     success, msg = import_user_data(uid, data)
     if success:
         await callback.message.edit_text(
-            t_pair(lang, "✅ Дані успішно імпортовано!", "✅ Data imported successfully!")
+            t_pair(lang, "✅ Дані успішно імпортовано!", "✅ Data imported successfully!"),
+            reply_markup=add_home_button(None, lang),
         )
     else:
         await callback.message.edit_text(
-            t_pair(lang, f"❌ Помилка імпорту: {msg}", f"❌ Import error: {msg}")
+            t_pair(lang, f"❌ Помилка імпорту: {msg}", f"❌ Import error: {msg}"),
+            reply_markup=add_home_button(None, lang),
         )
     clear_user_state(uid)
 
@@ -2254,7 +2277,10 @@ async def import_cancel(callback: CallbackQuery):
     uid = callback.from_user.id
     lang = get_user_language(uid)
     clear_user_state(uid)
-    await callback.message.edit_text(t_pair(lang, "❌ Імпорт скасовано", "❌ Import cancelled"))
+    await callback.message.edit_text(
+        t_pair(lang, "❌ Імпорт скасовано", "❌ Import cancelled"),
+        reply_markup=add_home_button(None, lang),
+    )
 
 
 # ── USE ITEM ----------
@@ -2369,7 +2395,10 @@ async def use_item(message: Message):
     items = get_user_items(uid)
     
     if not items:
-        await message.answer(t_pair(lang, "У вас немає предметів для використання. Купіть в /shop", "No items to use. Buy in /shop"))
+        await message.answer(
+            t_pair(lang, "У вас немає предметів для використання. Купіть в /shop", "No items to use. Buy in /shop"),
+            reply_markup=add_home_button(None, lang),
+        )
         return
     
     rows = []
@@ -2387,7 +2416,7 @@ async def use_item(message: Message):
     
     await message.answer(
         t_pair(lang, "Оберіть предмет для використання:", "Choose an item to use:"),
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=rows)
+        reply_markup=add_home_button(InlineKeyboardMarkup(inline_keyboard=rows), lang)
     )
 
 
@@ -2404,11 +2433,13 @@ async def use_item_callback(callback: CallbackQuery):
         name = t_pair(lang, item.get("uk_name", ""), item.get("en_name", ""))
         await callback.message.edit_text(
             f"✅ {name} використано!\n\n{result}",
-            parse_mode="HTML"
+            parse_mode="HTML",
+            reply_markup=add_home_button(None, lang),
         )
     else:
         await callback.message.edit_text(
-            t_pair(lang, f"❌ {msg}", f"❌ {msg}")
+            t_pair(lang, f"❌ {msg}", f"❌ {msg}"),
+            reply_markup=add_home_button(None, lang),
         )
 
 
@@ -2453,41 +2484,63 @@ async def help_command(message: Message):
 
 @dp.callback_query(F.data == "welcome_workout")
 async def welcome_workout(callback: CallbackQuery):
+    callback_user = getattr(callback, "from_user", None)
+    if not isinstance(callback.message, Message):
+        if callback_user is None:
+            await callback.answer()
+            from handlers.workouts import workout as start_workout
+            await start_workout(callback.message)
+            return
+        lang = get_user_language(callback_user.id)
+        await callback.answer(
+            t_pair(lang, "Це меню більше недоступне. Відкрий /start.", "This menu is no longer available. Open /start."),
+            show_alert=True,
+        )
+        return
     await callback.answer()
     # ``workout`` was moved to handlers.workouts during the split. Importing
     # it at module scope would create a cycle: bot.py imports bot_legacy first
     # and only then configures/includes the new routers.
-    callback_user = getattr(callback, "from_user", None)
     if callback_user is None:  # compatibility with older callback test doubles
         from handlers.workouts import workout as start_workout
         await start_workout(callback.message)
         return
     from handlers.workouts import start_workout_for_user
-    await start_workout_for_user(callback.message, callback_user.id, get_user_language(callback_user.id))
+    await start_workout_for_user(
+        callback.message,
+        callback_user.id,
+        get_user_language(callback_user.id),
+        edit=True,
+    )
 
 
 @dp.callback_query(F.data == "welcome_stats")
 async def welcome_stats(callback: CallbackQuery):
     await callback.answer()
-    await stats(callback.message, callback.from_user.id)
+    from handlers.stats import send_stats
+
+    await send_stats(callback.message, callback.from_user.id, edit=True)
 
 
 @dp.callback_query(F.data == "welcome_history")
 async def welcome_history(callback: CallbackQuery):
     await callback.answer()
-    await history(callback.message, callback.from_user.id)
+    await _history_list_message(callback, 0, callback.from_user.id)
 
 
 @dp.callback_query(F.data == "welcome_help")
 async def welcome_help(callback: CallbackQuery):
     await callback.answer()
     lang = get_user_language(callback.from_user.id)
-    await callback.message.answer(t("help", lang), parse_mode="HTML", reply_markup=help_keyboard(lang))
+    await callback.message.edit_text(t("help", lang), parse_mode="HTML", reply_markup=help_keyboard(lang))
 
 
 @dp.callback_query(F.data == "welcome_menu")
 async def welcome_menu(callback: CallbackQuery):
     lang = get_user_language(callback.from_user.id)
+    clear_user_state(callback.from_user.id)
+    _pending_workouts.pop(callback.from_user.id, None)
+    _pending_history_edits.pop(callback.from_user.id, None)
     await callback.answer()
     try:
         await callback.message.edit_text(t("welcome", lang), parse_mode="HTML", reply_markup=welcome_keyboard(lang))
@@ -2518,7 +2571,8 @@ async def change_language_command(message: Message):
 
     await message.answer(
         t_pair(lang, "Мову змінено на Українську ✅", "Language changed to English ✅"),
-        parse_mode="HTML"
+        parse_mode="HTML",
+        reply_markup=add_home_button(None, lang),
     )
 
 
@@ -2527,7 +2581,11 @@ async def set_language(callback: CallbackQuery):
     lang = "en" if callback.data == "set_lang_en" else "uk"
     set_user_language(callback.from_user.id, lang)
     await callback.answer(t_pair(lang, "Збережено", "Saved"))
-    await callback.message.edit_text(build_start_text(lang), parse_mode="HTML")
+    await callback.message.edit_text(
+        build_start_text(lang),
+        parse_mode="HTML",
+        reply_markup=welcome_keyboard(lang),
+    )
 
 
 @dp.message(Command("profile"))
@@ -2541,7 +2599,10 @@ async def profile(message: Message):
     if not profile_is_filled(profile_row):
         ensure_user(uid)
         set_user_state(uid, "profile")
-        await message.answer(profile_input_prompt(lang))
+        await message.answer(
+            profile_input_prompt(lang),
+            reply_markup=add_home_button(None, lang),
+        )
         return
 
     clear_user_state(uid)
@@ -2595,7 +2656,8 @@ async def profile(message: Message):
             "\n".join(profile_lines),
             icon="👤"
         ),
-        parse_mode="HTML"
+        parse_mode="HTML",
+        reply_markup=add_home_button(None, lang),
     )
 
 
@@ -2606,7 +2668,10 @@ async def edit_profile(message: Message):
         return
     lang = get_user_language(uid)
     set_user_state(uid, "profile")
-    await message.answer(profile_input_prompt(lang))
+    await message.answer(
+        profile_input_prompt(lang),
+        reply_markup=add_home_button(None, lang),
+    )
 
 
 @dp.message(Command("profile_visibility"))
@@ -2656,7 +2721,8 @@ async def set_goal(message: Message):
     lang = get_user_language(message.from_user.id)
     set_user_state(message.from_user.id, "weekly_goal")
     await message.answer(
-        t_pair(lang, "Введи мету на тиждень (кількість днів тренувань)\nПриклад: 4", "Enter weekly goal (number of workout days)\nExample: 4")
+        t_pair(lang, "Введи мету на тиждень (кількість днів тренувань)\nПриклад: 4", "Enter weekly goal (number of workout days)\nExample: 4"),
+        reply_markup=add_home_button(None, lang),
     )
 
 
@@ -2675,7 +2741,10 @@ async def goal(message: Message):
 
     if not row or not row[0] or row[0] < 1:
         db.close()
-        await message.answer(t_pair(lang, "Мета не задана. Використовуй /set_goal", "Goal is not set. Use /set_goal"))
+        await message.answer(
+            t_pair(lang, "Мета не задана. Використовуй /set_goal", "Goal is not set. Use /set_goal"),
+            reply_markup=add_home_button(None, lang),
+        )
         return
 
     weekly_goal = int(row[0])
@@ -2706,7 +2775,8 @@ async def goal(message: Message):
             ),
             icon="🗓️"
         ),
-        parse_mode="HTML"
+        parse_mode="HTML",
+        reply_markup=add_home_button(None, lang),
     )
 
 
@@ -2846,7 +2916,8 @@ async def wallet(message: Message):
                 ),
                 icon="💰"
             ),
-            parse_mode="HTML"
+            parse_mode="HTML",
+            reply_markup=add_home_button(None, lang),
         )
     except Exception as exc:
         log.error("/wallet handler error: %s", exc, exc_info=True)
@@ -3093,9 +3164,16 @@ async def shop_buy(callback: CallbackQuery):
         else:
             body = f"{base_msg}\n\n🌟 {item_desc}"
 
-    await callback.message.answer(
-        style_block(t_pair(lang, "📖 Умвовання в /wallet", "📖 Unlocked in /wallet"), body, icon="✅"),
-        parse_mode="HTML"
+    purchase_navigation = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(
+            text=t_pair(lang, "⬅️ До магазину", "⬅️ Back to shop"),
+            callback_data=f"shop_cat_{item.get('category', 'Інше')}",
+        )
+    ]])
+    await callback.message.edit_text(
+        style_block(t_pair(lang, "✅ Покупку завершено", "✅ Purchase complete"), body, icon="🛒"),
+        parse_mode="HTML",
+        reply_markup=add_home_button(purchase_navigation, lang),
     )
     await callback.answer(t_pair(lang, "🌟 Отмено!", "🌟 Awesome!"))
 
@@ -3129,12 +3207,12 @@ async def reminders(message: Message):
     if status:
         await message.answer(
             t_pair(lang, "🔔 Нагадування вже увімкнені.\n\nХочеш вимкнути?", "🔔 Reminders are already enabled.\n\nDo you want to disable them?"),
-            reply_markup=reminders_on_keyboard(lang)
+            reply_markup=reminders_off_keyboard(lang)
         )
     else:
         await message.answer(
             t_pair(lang, "🔕 Нагадування вже вимкнені.\n\nХочеш увімкнути?", "🔕 Reminders are already disabled.\n\nDo you want to enable them?"),
-            reply_markup=reminders_off_keyboard(lang)
+            reply_markup=reminders_on_keyboard(lang)
         )
 
 
@@ -3168,7 +3246,7 @@ async def reminders_on(callback: CallbackQuery):
                 "🔔 Нагадування УВІМКНЕНІ!\n\nОтримувати мотивацію щодня при пропуску тренування? 💪",
                 "🔔 Reminders are ENABLED!\n\nGet daily motivation if you skip a workout? 💪"
             ),
-            reply_markup=None
+            reply_markup=reminders_on_keyboard(lang)
         )
     except Exception as exc:
         log.debug("reminders_on callback: edit_text failed (harmless): %s", exc)
@@ -3204,7 +3282,7 @@ async def reminders_off(callback: CallbackQuery):
                 "🔕 Нагадування ВИМКНЕНІ\n\nТи босс, тренуйся за настроєм! 😎",
                 "🔕 Reminders are DISABLED\n\nYou're the boss, train by your mood! 😎"
             ),
-            reply_markup=None
+            reply_markup=reminders_off_keyboard(lang)
         )
     except Exception as exc:
         log.debug("reminders_off callback: edit_text failed (harmless): %s", exc)
@@ -3220,7 +3298,10 @@ async def suggest(message: Message):
     db.close()
 
     if not row or not row[0]:
-        await message.answer(t_pair(lang, "Спочатку задай мету в профілі (/profile).", "Set a goal in your profile first (/profile)."))
+        await message.answer(
+            t_pair(lang, "Спочатку задай мету в профілі (/profile).", "Set a goal in your profile first (/profile)."),
+            reply_markup=add_home_button(None, lang),
+        )
         return
 
     text = generate_workout(row[0], lang)
@@ -3234,7 +3315,8 @@ async def motivate(message: Message):
     title = t_pair(lang, "Мотивація", "Motivation")
     await message.answer(
         style_block(title, f"💬 {quote}", icon="🚀"),
-        parse_mode="HTML"
+        parse_mode="HTML",
+        reply_markup=add_home_button(None, lang),
     )
 
 
@@ -3245,7 +3327,8 @@ async def tip(message: Message):
     title = t_pair(lang, "Порада дня", "Tip of the day")
     await message.answer(
         style_block(title, f"💡 {tip_text}", icon="🧠"),
-        parse_mode="HTML"
+        parse_mode="HTML",
+        reply_markup=add_home_button(None, lang),
     )
 
 
@@ -3272,11 +3355,14 @@ async def suggest_retry(callback: CallbackQuery):
     db.close()
 
     if not row or not row[0]:
-        await callback.message.answer(t_pair(lang, "Немає мети", "No goal set"))
+        await callback.message.edit_text(
+            t_pair(lang, "Немає мети", "No goal set"),
+            reply_markup=add_home_button(None, lang),
+        )
         return
 
     text = generate_workout(row[0], lang)
-    await callback.message.answer(text, reply_markup=suggest_keyboard(lang))
+    await callback.message.edit_text(text, reply_markup=suggest_keyboard(lang))
 
 
 @dp.callback_query(F.data == "suggest_done")
@@ -3329,7 +3415,10 @@ async def suggest_done(callback: CallbackQuery):
         + "\n\n" + reward_text
     )
 
-    await callback.message.edit_text(edit_text)
+    await callback.message.edit_text(
+        edit_text,
+        reply_markup=add_home_button(None, lang),
+    )
     await callback.answer(t_pair(lang, "Нагороди нараховано", "Rewards granted"))
 
 
@@ -3398,7 +3487,11 @@ async def challenge_done(callback: CallbackQuery):
         callback.message.text
         + "\n\n" + reward_text
     )
-    await callback.message.edit_text(edit_text, parse_mode="HTML")
+    await callback.message.edit_text(
+        edit_text,
+        parse_mode="HTML",
+        reply_markup=add_home_button(None, lang),
+    )
     await callback.answer(t_pair(lang, "Нагороди нараховано", "Rewards granted"))
 
 
@@ -3449,8 +3542,11 @@ async def _save_workout_with_note(
         sync_info=sync_inf,
         achievements=achievements,
     )
-    await message.answer(notification +
-                         (t_pair(lang, f"\nНотатка: {note}", f"\nNote: {note}") if note else ""))
+    await message.answer(
+        notification
+        + (t_pair(lang, f"\nНотатка: {note}", f"\nNote: {note}") if note else ""),
+        reply_markup=add_home_button(None, lang),
+    )
     if is_first_workout:
         first_save_text = t_pair(
             lang,
@@ -3482,7 +3578,10 @@ async def workout_note_skip(callback: CallbackQuery):
 async def weight(message: Message):
     lang = get_user_language(message.from_user.id)
     set_user_state(message.from_user.id, "weight")
-    await message.answer(t_pair(lang, "Введи вагу (кг)", "Enter weight (kg)"))
+    await message.answer(
+        t_pair(lang, "Введи вагу (кг)", "Enter weight (kg)"),
+        reply_markup=add_home_button(None, lang),
+    )
 
 
 @dp.message(Command("weight_stats"))
@@ -3498,14 +3597,17 @@ async def weight_stats(message: Message):
     db.close()
 
     if not rows:
-        await message.answer(t_pair(lang, "Вага ще не записувалася.", "No weight entries yet."))
+        await message.answer(
+            t_pair(lang, "Вага ще не записувалася.", "No weight entries yet."),
+            reply_markup=add_home_button(None, lang),
+        )
         return
 
     text = t_pair(lang, "⚖️ Вага (останні записи):\n", "⚖️ Weight (latest entries):\n")
     for w, d in rows:
         text += f"{d}: {w} кг\n"
 
-    await message.answer(text)
+    await message.answer(text, reply_markup=add_home_button(None, lang))
 
 
 # ---------- TODAY ----------
@@ -3556,7 +3658,8 @@ async def today(message: Message):
             t_pair(lang, f"{text}\n\n🔥 Витрачено: ~{total_cal} ккал", f"{text}\n\n🔥 Burned: ~{total_cal} kcal"),
             icon="🏋️"
         ),
-        parse_mode="HTML"
+        parse_mode="HTML",
+        reply_markup=add_home_button(None, lang),
     )
 
 
@@ -3624,7 +3727,7 @@ def _history_keyboard(lang: str, page: int, page_count: int, sessions: list[dict
         navigation.append(InlineKeyboardButton(text=t_pair(lang, "Вперед ➡️", "Next ➡️"), callback_data=f"history_page_{page + 1}"))
     if navigation:
         rows.append(navigation)
-    return InlineKeyboardMarkup(inline_keyboard=rows)
+    return add_home_button(InlineKeyboardMarkup(inline_keyboard=rows), lang)
 
 
 async def _history_list_message(target, page: int = 0, user_id: int | None = None):
@@ -3635,7 +3738,12 @@ async def _history_list_message(target, page: int = 0, user_id: int | None = Non
     )
     if not sessions:
         text = t_pair(lang, "📚 Історія тренувань порожня.", "📚 Workout history is empty.")
-        markup = None
+        markup = add_home_button(InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(
+                text=t_pair(lang, "📊 До статистики", "📊 Back to stats"),
+                callback_data="stats_home",
+            )
+        ]]), lang)
         page = 0
     else:
         page_count = (len(sessions) + HISTORY_PAGE_SIZE - 1) // HISTORY_PAGE_SIZE
@@ -3671,11 +3779,11 @@ async def history_page(callback: CallbackQuery):
 
 
 def _history_detail_keyboard(lang: str, key: str, page: int) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[
+    return add_home_button(InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=t_pair(lang, "✏️ Редагувати", "✏️ Edit"), callback_data=f"history_edit_{key}_{page}"),
          InlineKeyboardButton(text=t_pair(lang, "🗑 Видалити", "🗑 Delete"), callback_data=f"history_delete_menu_{key}_{page}")],
         [InlineKeyboardButton(text=t_pair(lang, "⬅️ Назад", "⬅️ Back"), callback_data=f"history_back_{page}")],
-    ])
+    ]), lang)
 
 
 def _history_edit_keyboard(lang: str, key: str, page: int) -> InlineKeyboardMarkup:
@@ -3686,7 +3794,7 @@ def _history_edit_keyboard(lang: str, key: str, page: int) -> InlineKeyboardMark
                                           callback_data=f"history_edit_note_{key}_{page}")])
     rows.append([InlineKeyboardButton(text=t_pair(lang, "⬅️ Назад", "⬅️ Back"),
                                       callback_data=f"history_open_{key}_{page}")])
-    return InlineKeyboardMarkup(inline_keyboard=rows)
+    return add_home_button(InlineKeyboardMarkup(inline_keyboard=rows), lang)
 
 
 def _history_detail_payload(user_id: int, key: str, page: int):
@@ -3754,6 +3862,7 @@ async def history_choose_exercise(callback: CallbackQuery):
     ] for index, (exercise_id, text) in enumerate(exercises, 1)] + [[
         InlineKeyboardButton(text=t_pair(lang, "⬅️ Назад", "⬅️ Back"), callback_data=f"history_edit_{key}_{page}")
     ]])
+    markup = add_home_button(markup, lang)
     await callback.message.edit_text(t_pair(lang, "Оберіть вправу:", "Choose an exercise:"), reply_markup=markup)
     await callback.answer()
 
@@ -3769,7 +3878,10 @@ async def history_edit_exercise_start(callback: CallbackQuery):
                                                      "chat_id": callback.message.chat.id, "message_id": callback.message.message_id}
     set_user_state(callback.from_user.id, "history_edit_exercise")
     lang = get_user_language(callback.from_user.id)
-    await callback.message.edit_text(t_pair(lang, "Введіть нову назву вправи:", "Send the new exercise name:"))
+    await callback.message.edit_text(
+        t_pair(lang, "Введіть нову назву вправи:", "Send the new exercise name:"),
+        reply_markup=add_home_button(None, lang),
+    )
     await callback.answer()
 
 
@@ -3786,7 +3898,10 @@ async def history_edit_note_start(callback: CallbackQuery):
                                                      "chat_id": callback.message.chat.id, "message_id": callback.message.message_id}
     set_user_state(callback.from_user.id, "history_edit_note")
     lang = get_user_language(callback.from_user.id)
-    await callback.message.edit_text(t_pair(lang, "Введіть нову нотатку. Порожній текст видалить її:", "Send the new note. Empty text removes it:"))
+    await callback.message.edit_text(
+        t_pair(lang, "Введіть нову нотатку. Порожній текст видалить її:", "Send the new note. Empty text removes it:"),
+        reply_markup=add_home_button(None, lang),
+    )
     await callback.answer()
 
 
@@ -3804,7 +3919,10 @@ async def history_delete_menu(callback: CallbackQuery):
     else:
         rows.append([InlineKeyboardButton(text=t_pair(lang, "🗑 Видалити запис", "🗑 Delete record"), callback_data=f"history_confirm_exercise_{key}_{page}")])
     rows.append([InlineKeyboardButton(text=t_pair(lang, "⬅️ Назад", "⬅️ Back"), callback_data=f"history_open_{key}_{page}")])
-    await callback.message.edit_text(t_pair(lang, "Оберіть тип видалення:", "Choose deletion type:"), reply_markup=InlineKeyboardMarkup(inline_keyboard=rows))
+    await callback.message.edit_text(
+        t_pair(lang, "Оберіть тип видалення:", "Choose deletion type:"),
+        reply_markup=add_home_button(InlineKeyboardMarkup(inline_keyboard=rows), lang),
+    )
     await callback.answer()
 
 
@@ -3822,6 +3940,7 @@ async def history_choose_delete_exercise(callback: CallbackQuery):
     markup = InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(text=f"{index}. {_history_clip(text, 80)}", callback_data=f"history_confirm_exercise_e:{exercise_id}_{page}")
     ] for index, (exercise_id, text) in enumerate(exercises, 1)] + [[InlineKeyboardButton(text=t_pair(lang, "⬅️ Назад", "⬅️ Back"), callback_data=f"history_delete_menu_{key}_{page}")]])
+    markup = add_home_button(markup, lang)
     await callback.message.edit_text(t_pair(lang, "Оберіть вправу для видалення:", "Choose an exercise to delete:"), reply_markup=markup); await callback.answer()
 
 
@@ -3844,7 +3963,10 @@ async def history_confirm_prompt(callback: CallbackQuery):
         InlineKeyboardButton(text=t_pair(lang, "✅ Так, видалити", "✅ Yes, delete"), callback_data=f"history_do_delete_{kind}_{target}_{page}"),
         InlineKeyboardButton(text=t_pair(lang, "❌ Скасувати", "❌ Cancel"), callback_data=cancel_callback)
     ]])
-    await callback.message.edit_text(t_pair(lang, "Підтвердити видалення?", "Confirm deletion?"), reply_markup=markup); await callback.answer()
+    await callback.message.edit_text(
+        t_pair(lang, "Підтвердити видалення?", "Confirm deletion?"),
+        reply_markup=add_home_button(markup, lang),
+    ); await callback.answer()
 
 
 @dp.callback_query(F.data.startswith("history_do_delete_"))
@@ -4017,7 +4139,8 @@ async def level_cmd(message: Message):
             body,
             icon="🏆"
         ),
-        parse_mode="HTML"
+        parse_mode="HTML",
+        reply_markup=add_home_button(None, lang),
     )
 
 
@@ -4031,7 +4154,7 @@ async def chart_cmd(message: Message):
             "📊 Оберіть графік:",
             "📊 Pick a chart:"
         ),
-        reply_markup=chart_keyboard(lang)
+        reply_markup=add_home_button(chart_keyboard(lang), lang)
     )
 
 
@@ -4048,6 +4171,7 @@ async def chart_weight(cb: CallbackQuery):
             chat_id=chat_id,
             photo=photo,
             caption=t_pair(lang, "⚖️ Зміна ваги", "⚖️ Weight change"),
+            reply_markup=add_home_button(None, lang),
         )
     except Exception as exc:
         log.error(
@@ -4077,6 +4201,7 @@ async def chart_workouts(cb: CallbackQuery):
             chat_id=chat_id,
             photo=photo,
             caption=t_pair(lang, "🏋️ Тренування", "🏋️ Workouts"),
+            reply_markup=add_home_button(None, lang),
         )
     except Exception as exc:
         log.error("chart_workouts failed uid=%s chat=%s: %s",
@@ -4104,6 +4229,7 @@ async def chart_streak(cb: CallbackQuery):
             chat_id=chat_id,
             photo=photo,
             caption=t_pair(lang, "🔥 Серія днів", "🔥 Training streak"),
+            reply_markup=add_home_button(None, lang),
         )
     except Exception as exc:
         log.error("chart_streak failed uid=%s chat=%s: %s",
@@ -4131,6 +4257,7 @@ async def chart_volume(cb: CallbackQuery):
             chat_id=chat_id,
             photo=photo,
             caption=t_pair(lang, "📦 Обсяг тренувань", "📦 Training volume"),
+            reply_markup=add_home_button(None, lang),
         )
     except Exception as exc:
         log.error("chart_volume failed uid=%s chat=%s: %s",
@@ -4173,7 +4300,10 @@ async def handle_input(message: Message):
         pending = _pending_history_edits.get(uid)
         if not pending:
             clear_user_state(uid)
-            await message.answer(t_pair(lang, "Редагування вже завершено.", "Editing has already finished."))
+            await message.answer(
+                t_pair(lang, "Редагування вже завершено.", "Editing has already finished."),
+                reply_markup=add_home_button(None, lang),
+            )
             return
         value = message.text.strip()
         if state == "history_edit_exercise":
@@ -4195,9 +4325,15 @@ async def handle_input(message: Message):
         payload = _history_detail_payload(uid, meta["key"], meta["page"])
         if changed and payload:
             await bot.edit_message_text(chat_id=meta["chat_id"], message_id=meta["message_id"], text=payload[0], reply_markup=payload[1])
-            await message.answer(t_pair(lang, "Зміни збережено.", "Changes saved."))
+            await message.answer(
+                t_pair(lang, "Зміни збережено.", "Changes saved."),
+                reply_markup=add_home_button(None, lang),
+            )
         else:
-            await message.answer(t_pair(lang, "Запис не знайдено або доступ заборонено.", "Record not found or access denied."))
+            await message.answer(
+                t_pair(lang, "Запис не знайдено або доступ заборонено.", "Record not found or access denied."),
+                reply_markup=add_home_button(None, lang),
+            )
         return
 
     if state == "weekly_goal":
@@ -4222,7 +4358,10 @@ async def handle_input(message: Message):
             db.commit()
             db.close()
 
-            await message.answer(t_pair(lang, "Мета тижня збережена.", "Weekly goal saved."))
+            await message.answer(
+                t_pair(lang, "Мета тижня збережена.", "Weekly goal saved."),
+                reply_markup=add_home_button(None, lang),
+            )
             clear_user_state(uid)
         except ValueError:
             await message.answer(t_pair(lang, "Введи число.", "Enter a number."))
@@ -4252,7 +4391,10 @@ async def handle_input(message: Message):
             db.commit()
             db.close()
 
-            await message.answer(t_pair(lang, "Вагу збережено.", "Weight saved."))
+            await message.answer(
+                t_pair(lang, "Вагу збережено.", "Weight saved."),
+                reply_markup=add_home_button(None, lang),
+            )
             clear_user_state(uid)
         except ValueError:
             await message.answer(t_pair(lang, "Введи число.", "Enter a number."))
@@ -4303,15 +4445,14 @@ async def handle_input(message: Message):
             if age:
                 profile_summary += t_pair(lang, f"\n🎂 Вік: {age}", f"\n🎂 Age: {age}")
             
-            await message.answer(profile_summary)
-            
-            # Пропозиція налаштувати видимість профіля
+            profile_summary += "\n\n" + t_pair(
+                lang,
+                "Налаштувати видимість полів профіля? /profile_visibility",
+                "Configure profile field visibility? /profile_visibility",
+            )
             await message.answer(
-                t_pair(
-                    lang,
-                    "Налаштувати видимість полів профіля? /profile_visibility",
-                    "Configure profile field visibility? /profile_visibility"
-                )
+                profile_summary,
+                reply_markup=add_home_button(None, lang),
             )
             
             clear_user_state(uid)

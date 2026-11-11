@@ -37,8 +37,17 @@ class WorkoutHandlerTests(unittest.TestCase):
 
         self.assertEqual(self.states, [(123, "workout")])
         self.assertEqual(
-            message.answers,
-            [("Enter workout.\nYou can separate by commas:\nRunning 30 min, Push ups 4x20", {})],
+            len(message.answers),
+            1,
+        )
+        text, kwargs = message.answers[0]
+        self.assertEqual(
+            text,
+            "Enter workout.\nYou can separate by commas:\nRunning 30 min, Push ups 4x20",
+        )
+        self.assertEqual(
+            kwargs["reply_markup"].inline_keyboard[0][0].callback_data,
+            "welcome_menu",
         )
 
     def test_note_keyboard_preserves_skip_callback(self):
