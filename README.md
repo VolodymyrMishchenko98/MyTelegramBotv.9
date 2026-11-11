@@ -5,6 +5,7 @@
 ## 🚀 Возможности
 
 - 📊 **Отслеживание тренировок** - логирование упражнений и их результатов
+- 📝 **Персональная программа** - создание недельного плана по цели, доступному времени и оборудованию
 - 👤 **Профиль пользователя** - информация о росте, весе, возрасте и целях
 - 🎯 **Ежедневные задачи** - система ежедневных тренировочных целей
 - 🛒 **Магазин** - покупка премиум тренировок и бонусов за монеты
@@ -104,6 +105,7 @@ Use `/change_language` to switch the bot between Ukrainian and English; these ar
 | `/developer` | Переглянути картку й зв’язатися з розробником |
 | `/change_language` | Перемкнути українську й англійську |
 | `/workout` | Записати тренування |
+| `/program` | Створити, переглянути або архівувати програму тренувань |
 | `/today` | Переглянути активність за сьогодні |
 | `/history` | Переглянути історію тренувань |
 | `/stats` | Переглянути статистику тренувань |
@@ -140,6 +142,7 @@ Use `/change_language` to switch the bot between Ukrainian and English; these ar
 | `/developer` | View developer details and get in touch |
 | `/change_language` | Switch between Ukrainian and English |
 | `/workout` | Record a workout |
+| `/program` | Create, view, or archive a training plan |
 | `/today` | View today's activity |
 | `/history` | View workout history |
 | `/stats` | View workout statistics |

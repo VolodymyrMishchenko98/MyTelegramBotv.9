@@ -48,6 +48,7 @@ from services.achievements import check_and_award, get_user_stats
 from services.reward_notifications import build_reward_summary
 from services.reward_settlement import settle_action_rewards
 from services.developer_feedback import ensure_feedback_tables
+from services.training_programs import ensure_program_tables
 from handlers.workouts import _workout_note_keyboard
 from handlers.keyboards import add_home_button
 from game_config import (
@@ -598,6 +599,7 @@ BOT_COMMAND_DESCRIPTIONS = {
         "start": "Почати роботу",
         "help": "Список команд і коротка довідка",
         "developer": "Зв’язатися з розробником",
+        "program": "Створити або переглянути програму тренувань",
         "change_language": "Перемкнути українську й англійську",
         "profile": "Переглянути профіль",
         "edit_profile": "Змінити профіль",
@@ -631,6 +633,7 @@ BOT_COMMAND_DESCRIPTIONS = {
         "start": "Start using the bot",
         "help": "Command list and quick guide",
         "developer": "Contact the developer",
+        "program": "Create or view a training plan",
         "change_language": "Switch Ukrainian and English",
         "profile": "View your profile",
         "edit_profile": "Edit your profile",
@@ -1019,6 +1022,7 @@ def init_db():
                 )
                 """)
     ensure_feedback_tables(cur)
+    ensure_program_tables(cur)
 
     db.commit()
     db.close()
@@ -1026,6 +1030,10 @@ def init_db():
 
 # ---------- UTILS ----------
 def set_user_state(user_id: int, state: str):
+    if not state.startswith("training_program_"):
+        from handlers.programs import discard_draft
+
+        discard_draft(user_id)
     _manual_state_cache[user_id] = state
 
 
@@ -1035,12 +1043,21 @@ def get_user_state(user_id: int):
 
 def clear_user_state(user_id: int):
     _manual_state_cache.pop(user_id, None)
+    from handlers.programs import discard_draft
+
+    discard_draft(user_id)
 
 
 def _is_developer_feedback_state(message: Message) -> bool:
     user = getattr(message, "from_user", None)
     state = get_user_state(user.id) if user else None
     return bool(state and state.startswith("developer_feedback_"))
+
+
+def _is_training_program_state(message: Message) -> bool:
+    user = getattr(message, "from_user", None)
+    state = get_user_state(user.id) if user else None
+    return bool(state and state.startswith("training_program_"))
 
 
 @lru_cache(maxsize=2048)
@@ -2212,7 +2229,13 @@ async def import_prompt(message: Message):
     )
 
 
-@dp.message(F.document, lambda message: not _is_developer_feedback_state(message))
+@dp.message(
+    F.document,
+    lambda message: not (
+        _is_developer_feedback_state(message)
+        or _is_training_program_state(message)
+    ),
+)
 async def handle_import_file(message: Message):
     """Handle JSON file import."""
     uid = message.from_user.id
@@ -2471,6 +2494,10 @@ def welcome_keyboard(lang: str) -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="💪 Записати тренування" if lang == "uk" else "💪 Record workout", callback_data="welcome_workout")],
         [InlineKeyboardButton(text="📊 Моя статистика" if lang == "uk" else "📊 My stats", callback_data="welcome_stats"),
          InlineKeyboardButton(text="📅 Історія тренувань" if lang == "uk" else "📅 Workout history", callback_data="welcome_history")],
+        [InlineKeyboardButton(
+            text=t("program_create", lang),
+            callback_data="program:open",
+        )],
         [InlineKeyboardButton(text="❓ Як користуватися" if lang == "uk" else "❓ How to use", callback_data="welcome_help")],
         [InlineKeyboardButton(
             text=t("developer_contact_button", lang),
@@ -4309,10 +4336,10 @@ async def chart_volume(cb: CallbackQuery):
 
 # ---------- INPUT ----------
 def _is_non_command_message(message: Message) -> bool:
-    """Keep commands and developer feedback input out of the legacy text handler."""
+    """Keep commands and modular multi-step inputs out of the legacy handler."""
     if message.text and message.text.startswith("/"):
         return False
-    if _is_developer_feedback_state(message):
+    if _is_developer_feedback_state(message) or _is_training_program_state(message):
         return False
     return True
 

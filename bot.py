@@ -32,7 +32,18 @@ from bot_legacy import (
     set_user_language,
     toggle_user_language,
 )
-from handlers import admin, calories, daily, developer, profile, reminders, shop, stats, workouts
+from handlers import (
+    admin,
+    calories,
+    daily,
+    developer,
+    programs,
+    profile,
+    reminders,
+    shop,
+    stats,
+    workouts,
+)
 
 workouts.configure(get_user_language, set_user_state, t_pair)
 stats.configure(get_user_language)
@@ -44,6 +55,12 @@ developer.configure(
     welcome_keyboard,
     DEVELOPER_CHAT_ID,
 )
+programs.configure(
+    get_user_language,
+    get_user_state,
+    set_user_state,
+    clear_user_state,
+)
 
 for router in (
     reminders.router,
@@ -54,6 +71,7 @@ for router in (
     daily.router,
     stats.router,
     developer.router,
+    programs.router,
     admin.router,
 ):
     dp.include_router(router)

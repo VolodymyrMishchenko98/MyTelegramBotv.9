@@ -14,7 +14,7 @@ TEXTS = {
     },
     "help": {
         "uk": ("<b>Команди SportBot</b>\n/help — цей список команд\n\n"
-               "<b>Тренування</b>\n/workout — записати тренування\n/today — активність за сьогодні\n/history — історія тренувань\n\n"
+               "<b>Тренування</b>\n/workout — записати тренування\n/program — створити або переглянути програму\n/today — активність за сьогодні\n/history — історія тренувань\n\n"
                "<b>Статистика та прогрес</b>\n/stats — статистика тренувань\n/weight — записати вагу\n/weight_stats — останні записи ваги\n/level — рівень і XP\n/chart — графіки прогресу\n\n"
                "<b>Профіль і цілі</b>\n/profile — переглянути профіль\n/edit_profile — змінити профіль\n/profile_visibility — налаштувати видимість полів\n/set_goal — задати тижневу ціль\n/goal — переглянути ціль\n/suggest — запропонувати тренування (потрібна мета в профілі)\n\n"
                "<b>Завдання та нагороди</b>\n/daily — щоденне завдання\n/challenge — челендж дня\n/reminders — налаштувати нагадування\n/motivate — мотивація\n/tip — порада дня\n/wallet — монети та інвентар\n/shop — магазин\n/use — використати предмет з інвентарю\n\n"
@@ -23,7 +23,7 @@ TEXTS = {
                "<b>Лише для адміністраторів з ADMIN_IDS</b>\n/admin — статистика бота\n/backup — створити резервну копію\n\n"
                "Введи /start, щоб відкрити головне меню."),
         "en": ("<b>SportBot commands</b>\n/help — this command list\n\n"
-               "<b>Workouts</b>\n/workout — record a workout\n/today — today's activity\n/history — workout history\n\n"
+               "<b>Workouts</b>\n/workout — record a workout\n/program — create or view a training plan\n/today — today's activity\n/history — workout history\n\n"
                "<b>Stats and progress</b>\n/stats — workout statistics\n/weight — record body weight\n/weight_stats — recent weight entries\n/level — level and XP\n/chart — progress charts\n\n"
                "<b>Profile and goals</b>\n/profile — view your profile\n/edit_profile — edit your profile\n/profile_visibility — manage visible profile fields\n/set_goal — set a weekly goal\n/goal — view your goal\n/suggest — suggest a workout (requires a profile goal)\n\n"
                "<b>Tasks and rewards</b>\n/daily — daily task\n/challenge — daily challenge\n/reminders — manage reminders\n/motivate — motivation\n/tip — tip of the day\n/wallet — coins and inventory\n/shop — shop\n/use — use an inventory item\n\n"
@@ -31,6 +31,561 @@ TEXTS = {
                "/developer — contact the developer\n\n"
                "<b>Admins configured in ADMIN_IDS only</b>\n/admin — bot statistics\n/backup — create a database backup\n\n"
                "Send /start to open the main menu."),
+    },
+    "program_create": {
+        "uk": "📝 Створити програму",
+        "en": "📝 Create a program",
+    },
+    "program_empty": {
+        "uk": "🏋️ <b>Персональна програма</b>\n\nУ тебе ще немає активної програми. Відповідай на кілька коротких запитань — і я складу помірний план на тиждень.",
+        "en": "🏋️ <b>Personal training plan</b>\n\nYou don't have an active plan yet. Answer a few quick questions and I'll build a moderate weekly plan.",
+    },
+    "program_archive": {
+        "uk": "📦 Архівувати програму",
+        "en": "📦 Archive plan",
+    },
+    "program_archives": {
+        "uk": "🗂 Архів програм",
+        "en": "🗂 Archived plans",
+    },
+    "program_back": {
+        "uk": "↩️ Назад",
+        "en": "↩️ Back",
+    },
+    "program_cancel": {
+        "uk": "✖️ Скасувати",
+        "en": "✖️ Cancel",
+    },
+    "program_continue": {
+        "uk": "Далі",
+        "en": "Continue",
+    },
+    "program_skip": {
+        "uk": "Пропустити",
+        "en": "Skip",
+    },
+    "program_generate": {
+        "uk": "✅ Створити програму",
+        "en": "✅ Generate plan",
+    },
+    "program_to_menu": {
+        "uk": "До програми",
+        "en": "Back to plan",
+    },
+    "program_archive_confirm": {
+        "uk": "Так, архівувати",
+        "en": "Yes, archive",
+    },
+    "program_back_to_plan": {
+        "uk": "↩️ До програми",
+        "en": "↩️ Back to plan",
+    },
+    "program_invalid_choice": {
+        "uk": "Цей крок застарів. Відкрий /program і продовж.",
+        "en": "This step has expired. Open /program to continue.",
+    },
+    "program_choose_button": {
+        "uk": "Обери варіант кнопкою нижче.",
+        "en": "Choose an option using the buttons below.",
+    },
+    "program_select_equipment": {
+        "uk": "Обери принаймні один варіант обладнання.",
+        "en": "Select at least one equipment option.",
+    },
+    "program_not_found": {
+        "uk": "Програму не знайдено або вона більше недоступна.",
+        "en": "The plan wasn't found or is no longer available.",
+    },
+    "program_no_archives": {
+        "uk": "Архівованих програм поки немає.",
+        "en": "There are no archived plans yet.",
+    },
+    "program_archive_item": {
+        "uk": "Програма #{program_id} · {created}",
+        "en": "Plan #{program_id} · {created}",
+    },
+    "program_question_goal": {
+        "uk": "1/7. Яка твоя мета тренувань?",
+        "en": "1/7. What is your training goal?",
+    },
+    "program_question_location": {
+        "uk": "2/7. Де плануєш тренуватися?",
+        "en": "2/7. Where do you plan to train?",
+    },
+    "program_question_frequency": {
+        "uk": "3/7. Скільки тренувань на тиждень тобі підходить?",
+        "en": "3/7. How many workouts per week work for you?",
+    },
+    "program_question_duration": {
+        "uk": "4/7. Скільки часу маєш на одне заняття?",
+        "en": "4/7. How much time do you have for each session?",
+    },
+    "program_question_level": {
+        "uk": "5/7. Як оціниш свій рівень підготовки?",
+        "en": "5/7. How would you describe your current level?",
+    },
+    "program_question_equipment": {
+        "uk": "6/7. Обери все доступне обладнання. «Без обладнання» не поєднується з іншими варіантами.",
+        "en": "6/7. Select all available equipment. “No equipment” can't be combined with other options.",
+    },
+    "program_question_other_equipment": {
+        "uk": "Переліч інше доступне обладнання через кому (до 120 символів). Відомі назви можна врахувати; незнайоме обладнання не буде автоматично додане до вправ.",
+        "en": "List other available equipment separated by commas (up to 120 characters). Recognized items can be used; unknown equipment won't be added to exercises automatically.",
+    },
+    "program_question_notes": {
+        "uk": "7/7. Додаткові побажання чи обмеження? Напиши текстом (до 500 символів) або пропусти. Для підготовки до спорту вкажи його назву.",
+        "en": "7/7. Any extra preferences or limitations? Enter up to 500 characters or skip. If preparing for a sport, include its name.",
+    },
+    "program_goal_general": {
+        "uk": "Загальна фізична підготовка",
+        "en": "General fitness",
+    },
+    "program_goal_strength": {
+        "uk": "Розвиток сили",
+        "en": "Strength",
+    },
+    "program_goal_endurance": {
+        "uk": "Витривалість",
+        "en": "Endurance",
+    },
+    "program_goal_mobility": {
+        "uk": "Гнучкість і мобільність",
+        "en": "Flexibility and mobility",
+    },
+    "program_goal_sport": {
+        "uk": "Підготовка до спорту",
+        "en": "Sport preparation",
+    },
+    "program_location_home": {
+        "uk": "Дім",
+        "en": "Home",
+    },
+    "program_location_gym": {
+        "uk": "Тренажерний зал",
+        "en": "Gym",
+    },
+    "program_location_outdoors": {
+        "uk": "Вулиця",
+        "en": "Outdoors",
+    },
+    "program_frequency_2_3": {
+        "uk": "2–3 на тиждень",
+        "en": "2–3 per week",
+    },
+    "program_frequency_4": {
+        "uk": "4 на тиждень",
+        "en": "4 per week",
+    },
+    "program_frequency_5": {
+        "uk": "5 на тиждень",
+        "en": "5 per week",
+    },
+    "program_duration_15_20": {
+        "uk": "15–20 хвилин",
+        "en": "15–20 minutes",
+    },
+    "program_duration_30": {
+        "uk": "30 хвилин",
+        "en": "30 minutes",
+    },
+    "program_duration_45": {
+        "uk": "45 хвилин",
+        "en": "45 minutes",
+    },
+    "program_duration_60": {
+        "uk": "60 хвилин",
+        "en": "60 minutes",
+    },
+    "program_level_beginner": {
+        "uk": "Початковий",
+        "en": "Beginner",
+    },
+    "program_level_intermediate": {
+        "uk": "Середній",
+        "en": "Intermediate",
+    },
+    "program_level_advanced": {
+        "uk": "Просунутий",
+        "en": "Advanced",
+    },
+    "program_equipment_none": {
+        "uk": "Без обладнання",
+        "en": "No equipment",
+    },
+    "program_equipment_dumbbells": {
+        "uk": "Гантелі",
+        "en": "Dumbbells",
+    },
+    "program_equipment_pullup_bar": {
+        "uk": "Турнік",
+        "en": "Pull-up bar",
+    },
+    "program_equipment_machines": {
+        "uk": "Тренажери",
+        "en": "Machines",
+    },
+    "program_equipment_other": {
+        "uk": "Інше",
+        "en": "Other",
+    },
+    "program_not_selected": {
+        "uk": "не вибрано",
+        "en": "not selected",
+    },
+    "program_parameter_goal": {
+        "uk": "Мета: {value}",
+        "en": "Goal: {value}",
+    },
+    "program_parameter_location": {
+        "uk": "Місце: {value}",
+        "en": "Location: {value}",
+    },
+    "program_parameter_frequency": {
+        "uk": "Частота: {value}",
+        "en": "Frequency: {value}",
+    },
+    "program_parameter_duration": {
+        "uk": "Тривалість: {value}",
+        "en": "Session length: {value}",
+    },
+    "program_parameter_level": {
+        "uk": "Рівень: {value}",
+        "en": "Level: {value}",
+    },
+    "program_parameter_equipment": {
+        "uk": "Обладнання: {value}",
+        "en": "Equipment: {value}",
+    },
+    "program_parameter_notes": {
+        "uk": "Побажання/обмеження: {value}",
+        "en": "Preferences/limitations: {value}",
+    },
+    "program_confirmation": {
+        "uk": "Перевір параметри програми:\n\n{parameters}\n\nПісля підтвердження збережу нову програму.",
+        "en": "Review your plan settings:\n\n{parameters}\n\nConfirm to save the new plan.",
+    },
+    "program_replace_notice": {
+        "uk": "Поточна програма буде архівована, а нова стане активною. Історія тренувань не зміниться.",
+        "en": "Your current plan will be archived and the new one will become active. Workout history won't change.",
+    },
+    "program_saved_title": {
+        "uk": "🏋️ <b>Тижнева програма #{program_id}</b>",
+        "en": "🏋️ <b>Weekly plan #{program_id}</b>",
+    },
+    "program_weekly_schedule": {
+        "uk": "<b>Заняття:</b>\n{days}",
+        "en": "<b>Sessions:</b>\n{days}",
+    },
+    "program_recovery_notice": {
+        "uk": "Дні без занять — для відновлення; за потреби перенеси тренування або відпочинь.",
+        "en": "Days without sessions are for recovery; reschedule a workout or rest when needed.",
+    },
+    "program_two_day_option_note": {
+        "uk": "Для варіанта 2–3 на тиждень у плані є три заняття; якщо обираєш два, пропусти одне й залиш день для відновлення.",
+        "en": "The 2–3 per week option schedules three sessions; if you prefer two, skip one and keep a recovery day.",
+    },
+    "program_five_day_note": {
+        "uk": "Для частоти 5 разів два заняття зроблено легкими сесіями мобільності; середа й субота залишаються днями відновлення.",
+        "en": "For five sessions per week, two are lighter mobility sessions; Wednesday and Saturday remain recovery days.",
+    },
+    "program_schedule_line": {
+        "uk": "• {day} — {title}",
+        "en": "• {day} — {title}",
+    },
+    "program_progression": {
+        "uk": "<b>Поступове навантаження:</b>\n{steps}",
+        "en": "<b>Gradual progression:</b>\n{steps}",
+    },
+    "program_progression_week_1": {
+        "uk": "Тиждень 1: відпрацюй техніку у комфортному темпі.",
+        "en": "Week 1: learn the movements at a comfortable pace.",
+    },
+    "program_progression_week_2": {
+        "uk": "Тиждень 2: за доброго самопочуття додай 1 повторення або 1–2 хвилини.",
+        "en": "Week 2: if you feel well, add 1 repetition or 1–2 minutes.",
+    },
+    "program_progression_week_3": {
+        "uk": "Тиждень 3: повтори невелике збільшення лише за повного відновлення.",
+        "en": "Week 3: repeat a small increase only if you're fully recovered.",
+    },
+    "program_progression_week_4": {
+        "uk": "Тиждень 4: збережи навантаження або зроби легший тиждень.",
+        "en": "Week 4: maintain the load or take an easier week.",
+    },
+    "program_safety_general": {
+        "uk": "План загальний, а тривалість орієнтовна. Не тренуйся через біль чи до виснаження; зупинись, якщо стає зле.",
+        "en": "This is a general plan and durations are estimates. Don't train through pain or to exhaustion; stop if you feel unwell.",
+    },
+    "program_safety_minor": {
+        "uk": "План адаптовано для неповнолітнього: помірні вправи, акцент на техніці, без максимальних ваг. Тренуйся з наглядом дорослого або тренера.",
+        "en": "This plan is adjusted for a minor: moderate exercises, technique first, no maximum weights. Train with an adult or coach supervising.",
+    },
+    "program_notes_caution": {
+        "uk": "Важливо: побажання й обмеження збережені, але система не може оцінити травми чи медичні стани. Узгодь план із фахівцем перед тренуванням, якщо маєш такі обмеження.",
+        "en": "Important: your notes are saved, but the bot can't assess injuries or medical conditions. Consult a qualified professional before using this plan if you have such limitations.",
+    },
+    "program_sport_caution": {
+        "uk": "Це загальна фізична підготовка, не спеціалізований план для конкретного виду спорту.",
+        "en": "This is general conditioning, not a sport-specific training plan.",
+    },
+    "program_day_title": {
+        "uk": "📅 <b>{day} · {title}</b>",
+        "en": "📅 <b>{day} · {title}</b>",
+    },
+    "program_objective": {
+        "uk": "<b>Мета:</b> {value}",
+        "en": "<b>Focus:</b> {value}",
+    },
+    "program_warmup": {
+        "uk": "<b>Розминка:</b> {value}",
+        "en": "<b>Warm-up:</b> {value}",
+    },
+    "program_warmup_detail": {
+        "uk": "5–7 хв легкої ходьби та плавних рухів суглобами.",
+        "en": "5–7 min of easy walking and gentle joint movements.",
+    },
+    "program_exercises": {
+        "uk": "<b>Вправи:</b>",
+        "en": "<b>Exercises:</b>",
+    },
+    "program_prescription_reps": {
+        "uk": "{sets} підх. × {reps} повт.",
+        "en": "{sets} sets × {reps} reps",
+    },
+    "program_prescription_minutes": {
+        "uk": "{sets} × {minutes} хв у легкому темпі",
+        "en": "{sets} × {minutes} min at an easy pace",
+    },
+    "program_rest": {
+        "uk": "<b>Відпочинок:</b> приблизно {seconds} с між підходами.",
+        "en": "<b>Rest:</b> about {seconds} sec between sets.",
+    },
+    "program_cooldown": {
+        "uk": "<b>Заминка:</b> {value}",
+        "en": "<b>Cool-down:</b> {value}",
+    },
+    "program_cooldown_detail": {
+        "uk": "3–5 хв спокійного руху й м'якого розтягування без болю.",
+        "en": "3–5 min of easy movement and gentle, pain-free stretching.",
+    },
+    "program_duration_estimate": {
+        "uk": "<b>Тривалість:</b> приблизно {minutes} хв.",
+        "en": "<b>Duration:</b> about {minutes} min.",
+    },
+    "program_effort_note": {
+        "uk": "Залишай запас сил і виконуй рухи контрольовано.",
+        "en": "Keep some energy in reserve and move with control.",
+    },
+    "program_objective_general": {
+        "uk": "помірна робота на все тіло",
+        "en": "moderate full-body work",
+    },
+    "program_objective_strength": {
+        "uk": "контрольована силова робота без максимальних ваг",
+        "en": "controlled strength work without maximum weights",
+    },
+    "program_objective_endurance": {
+        "uk": "розвиток витривалості у комфортному темпі",
+        "en": "build endurance at a comfortable pace",
+    },
+    "program_objective_mobility": {
+        "uk": "м'яка рухливість і контроль руху",
+        "en": "gentle mobility and movement control",
+    },
+    "program_objective_sport": {
+        "uk": "загальна фізична підготовка до спорту",
+        "en": "general conditioning for sport",
+    },
+    "program_session_full_a": {
+        "uk": "Все тіло A",
+        "en": "Full body A",
+    },
+    "program_session_full_b": {
+        "uk": "Все тіло B",
+        "en": "Full body B",
+    },
+    "program_session_full_c": {
+        "uk": "Все тіло C",
+        "en": "Full body C",
+    },
+    "program_session_strength_a": {
+        "uk": "Сила A",
+        "en": "Strength A",
+    },
+    "program_session_strength_b": {
+        "uk": "Сила B",
+        "en": "Strength B",
+    },
+    "program_session_endurance_a": {
+        "uk": "Витривалість A",
+        "en": "Endurance A",
+    },
+    "program_session_endurance_b": {
+        "uk": "Витривалість B",
+        "en": "Endurance B",
+    },
+    "program_session_mobility_a": {
+        "uk": "Мобільність A",
+        "en": "Mobility A",
+    },
+    "program_session_mobility_b": {
+        "uk": "Мобільність B",
+        "en": "Mobility B",
+    },
+    "program_session_sport_a": {
+        "uk": "Загальна підготовка A",
+        "en": "General preparation A",
+    },
+    "program_session_sport_b": {
+        "uk": "Загальна підготовка B",
+        "en": "General preparation B",
+    },
+    "program_session_cardio": {
+        "uk": "Кардіо та корпус",
+        "en": "Cardio and core",
+    },
+    "program_session_mobility": {
+        "uk": "Мобільність і легка активність",
+        "en": "Mobility and light activity",
+    },
+    "program_day_monday": {"uk": "Понеділок", "en": "Monday"},
+    "program_day_tuesday": {"uk": "Вівторок", "en": "Tuesday"},
+    "program_day_wednesday": {"uk": "Середа", "en": "Wednesday"},
+    "program_day_thursday": {"uk": "Четвер", "en": "Thursday"},
+    "program_day_friday": {"uk": "П'ятниця", "en": "Friday"},
+    "program_day_saturday": {"uk": "Субота", "en": "Saturday"},
+    "program_day_sunday": {"uk": "Неділя", "en": "Sunday"},
+    "program_exercise_squat": {
+        "uk": "Присідання до комфортної глибини",
+        "en": "Comfortable-range squats",
+    },
+    "program_exercise_push": {
+        "uk": "Жимова вправа з доступним обладнанням",
+        "en": "Pressing exercise with available equipment",
+    },
+    "program_exercise_pull": {
+        "uk": "Тягова вправа з доступним обладнанням",
+        "en": "Pulling exercise with available equipment",
+    },
+    "program_exercise_glute_bridge": {
+        "uk": "Сідничний місток",
+        "en": "Glute bridge",
+    },
+    "program_exercise_dead_bug": {
+        "uk": "Dead bug (контроль корпусу)",
+        "en": "Dead bug (core control)",
+    },
+    "program_exercise_bird_dog": {
+        "uk": "Птах-собака",
+        "en": "Bird dog",
+    },
+    "program_exercise_step_back": {
+        "uk": "Крок назад із підтримкою за потреби",
+        "en": "Step-back with support if needed",
+    },
+    "program_exercise_brisk_walk": {
+        "uk": "Швидка ходьба",
+        "en": "Brisk walk",
+    },
+    "program_exercise_march": {
+        "uk": "Марш на місці",
+        "en": "March in place",
+    },
+    "program_exercise_cat_cow": {
+        "uk": "Плавна мобілізація спини «кішка-корова»",
+        "en": "Gentle cat-cow spinal mobility",
+    },
+    "program_exercise_hip_mobility": {
+        "uk": "М'яка рухливість кульшових суглобів",
+        "en": "Gentle hip mobility",
+    },
+    "program_exercise_shoulder_mobility": {
+        "uk": "Плавні кола плечима",
+        "en": "Gentle shoulder circles",
+    },
+    "program_stationary_bike": {
+        "uk": "Велотренажер у легкому темпі",
+        "en": "Stationary bike at an easy pace",
+    },
+    "program_machine_leg_press": {
+        "uk": "Жим ногами в тренажері з легким опором",
+        "en": "Leg press with light resistance",
+    },
+    "program_dumbbell_squat": {
+        "uk": "Присідання з легкими гантелями",
+        "en": "Squat with light dumbbells",
+    },
+    "program_machine_chest_press": {
+        "uk": "Жим від грудей у тренажері з легким опором",
+        "en": "Machine chest press with light resistance",
+    },
+    "program_dumbbell_press": {
+        "uk": "Жим гантелей лежачи на підлозі",
+        "en": "Dumbbell floor press",
+    },
+    "program_wall_pushup": {
+        "uk": "Відтискання від стіни",
+        "en": "Wall push-ups",
+    },
+    "program_incline_pushup": {
+        "uk": "Відтискання від стійкої підвищеної опори",
+        "en": "Incline push-ups against a stable surface",
+    },
+    "program_machine_row": {
+        "uk": "Тяга в тренажері з легким опором",
+        "en": "Machine row with light resistance",
+    },
+    "program_dumbbell_row": {
+        "uk": "Тяга гантелі з опорою",
+        "en": "Supported dumbbell row",
+    },
+    "program_band_press": {
+        "uk": "Жим еластичної стрічки з легким натягом",
+        "en": "Resistance-band press with light tension",
+    },
+    "program_band_row": {
+        "uk": "Тяга еластичної стрічки з легким натягом",
+        "en": "Resistance-band row with light tension",
+    },
+    "program_supported_hang": {
+        "uk": "Вис на турніку з опорою ногами",
+        "en": "Supported bar hang with feet on the floor",
+    },
+    "program_prone_w_raise": {
+        "uk": "Підйом рук лежачи у формі W",
+        "en": "Prone W raise",
+    },
+    "program_text_only": {
+        "uk": "Надішли текст або скористайся кнопкою пропуску.",
+        "en": "Send text or use the skip button.",
+    },
+    "program_empty_input": {
+        "uk": "Поле порожнє. Напиши текст або пропусти цей крок.",
+        "en": "The field is empty. Enter text or skip this step.",
+    },
+    "program_equipment_too_long": {
+        "uk": "Занадто довго. Максимум — 120 символів.",
+        "en": "That's too long. Maximum is 120 characters.",
+    },
+    "program_notes_too_long": {
+        "uk": "Занадто довго. Максимум — 500 символів.",
+        "en": "That's too long. Maximum is 500 characters.",
+    },
+    "program_save_error": {
+        "uk": "Не вдалося створити програму. Твої відповіді збережені — спробуй ще раз.",
+        "en": "Couldn't create the plan. Your answers are still available—please try again.",
+    },
+    "program_archives_title": {
+        "uk": "🗂 Архівовані програми",
+        "en": "🗂 Archived plans",
+    },
+    "program_archive_confirmation": {
+        "uk": "Архівувати поточну програму? Вона залишиться доступною в архіві.",
+        "en": "Archive the current plan? It will remain available in your archive.",
+    },
+    "program_archived": {
+        "uk": "Програму перенесено до архіву.",
+        "en": "The plan has been archived.",
     },
     "developer_card": {
         "uk": ("👨‍💻 <b>Зв'язок із розробником SportBot</b>\n\n"
