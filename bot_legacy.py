@@ -68,6 +68,21 @@ if not token:
 if not API_NINJAS_KEY:
     raise RuntimeError("API_NINJAS_KEY is not set. Add it to environment variables.")
 
+DEVELOPER_USERNAME = os.getenv("DEVELOPER_USERNAME", "").strip()
+if DEVELOPER_USERNAME.startswith("@"):
+    DEVELOPER_USERNAME = DEVELOPER_USERNAME[1:]
+if DEVELOPER_USERNAME and not re.fullmatch(r"[A-Za-z0-9_]{5,32}", DEVELOPER_USERNAME):
+    log.warning("DEVELOPER_USERNAME is invalid; developer contact buttons will be hidden")
+    DEVELOPER_USERNAME = ""
+
+
+def developer_contact_url() -> str | None:
+    """Return a Telegram profile URL only when a valid developer username is configured."""
+    if not DEVELOPER_USERNAME:
+        return None
+    return f"https://t.me/{DEVELOPER_USERNAME}"
+
+
 # Оптимизация для более быстрой отправки сообщений: timeout 10 секунд вместо 30
 bot = Bot(token=token, timeout=aiohttp.ClientTimeout(total=10, connect=5, sock_read=5))
 storage = MemoryStorage()
@@ -584,6 +599,7 @@ BOT_COMMAND_DESCRIPTIONS = {
     "uk": {
         "start": "Почати роботу",
         "help": "Список команд і коротка довідка",
+        "developer": "Зв’язатися з розробником",
         "change_language": "Перемкнути українську й англійську",
         "profile": "Переглянути профіль",
         "edit_profile": "Змінити профіль",
@@ -616,6 +632,7 @@ BOT_COMMAND_DESCRIPTIONS = {
     "en": {
         "start": "Start using the bot",
         "help": "Command list and quick guide",
+        "developer": "Contact the developer",
         "change_language": "Switch Ukrainian and English",
         "profile": "View your profile",
         "edit_profile": "Edit your profile",
@@ -2445,13 +2462,23 @@ async def use_item_callback(callback: CallbackQuery):
 
 # ---------- COMMANDS ----------
 def welcome_keyboard(lang: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[
+    rows = [
         [InlineKeyboardButton(text="💪 Записати тренування" if lang == "uk" else "💪 Record workout", callback_data="welcome_workout")],
         [InlineKeyboardButton(text="📊 Моя статистика" if lang == "uk" else "📊 My stats", callback_data="welcome_stats"),
          InlineKeyboardButton(text="📅 Історія тренувань" if lang == "uk" else "📅 Workout history", callback_data="welcome_history")],
         [InlineKeyboardButton(text="❓ Як користуватися" if lang == "uk" else "❓ How to use", callback_data="welcome_help")],
-        [InlineKeyboardButton(text="🇬🇧 English" if lang == "uk" else "🇺🇦 Українська", callback_data="welcome_lang_en" if lang == "uk" else "welcome_lang_uk")],
-    ])
+    ]
+    developer_url = developer_contact_url()
+    if developer_url:
+        rows.append([InlineKeyboardButton(
+            text=t("developer_contact_button", lang),
+            url=developer_url,
+        )])
+    rows.append([InlineKeyboardButton(
+        text="🇬🇧 English" if lang == "uk" else "🇺🇦 Українська",
+        callback_data="welcome_lang_en" if lang == "uk" else "welcome_lang_uk",
+    )])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def help_keyboard(lang: str) -> InlineKeyboardMarkup:
@@ -2480,6 +2507,28 @@ async def start(message: Message):
 async def help_command(message: Message):
     lang = get_user_language(message.from_user.id)
     await message.answer(t("help", lang), parse_mode="HTML", reply_markup=help_keyboard(lang))
+
+
+@dp.message(Command("developer"))
+async def developer(message: Message):
+    lang = get_user_language(message.from_user.id)
+    text = t("developer_card", lang)
+    developer_url = developer_contact_url()
+    keyboard = None
+    if developer_url:
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(
+                text=t("developer_contact_button", lang),
+                url=developer_url,
+            ),
+        ]])
+    else:
+        text += "\n\n" + t("developer_contact_unavailable", lang)
+    await message.answer(
+        text,
+        parse_mode="HTML",
+        reply_markup=add_home_button(keyboard, lang),
+    )
 
 
 @dp.callback_query(F.data == "welcome_workout")

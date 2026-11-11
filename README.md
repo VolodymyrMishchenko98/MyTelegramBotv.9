@@ -101,6 +101,7 @@ Use `/change_language` to switch the bot between Ukrainian and English; these ar
 | --- | --- |
 | `/start` | Почати роботу й відкрити меню |
 | `/help` | Переглянути список команд і довідку |
+| `/developer` | Переглянути картку й зв’язатися з розробником |
 | `/change_language` | Перемкнути українську й англійську |
 | `/workout` | Записати тренування |
 | `/today` | Переглянути активність за сьогодні |
@@ -136,6 +137,7 @@ Use `/change_language` to switch the bot between Ukrainian and English; these ar
 | --- | --- |
 | `/start` | Start using the bot and open the menu |
 | `/help` | View the command list and quick guide |
+| `/developer` | View developer details and get in touch |
 | `/change_language` | Switch between Ukrainian and English |
 | `/workout` | Record a workout |
 | `/today` | View today's activity |
@@ -238,10 +240,13 @@ heroku create your-app-name
 # 4. Установить Config Vars
 heroku config:set BOT_TOKEN=your_token
 heroku config:set API_NINJAS_KEY=your_key
+heroku config:set DEVELOPER_USERNAME=your_telegram_username
 
 # 5. Запушить на Heroku
 git push heroku main
 ```
+
+`DEVELOPER_USERNAME` is the developer's Telegram username (without `@`). For local runs, add `DEVELOPER_USERNAME=your_telegram_username` to `.env`. If unset or invalid, the contact button is hidden and `/developer` displays a localized notice.
 
 ## 🐛 Решение проблем
 

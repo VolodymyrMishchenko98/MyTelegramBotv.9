@@ -48,6 +48,7 @@ class OnboardingTests(unittest.TestCase):
                 button.callback_data
                 for row in bot_legacy.welcome_keyboard(lang).inline_keyboard
                 for button in row
+                if button.callback_data
             }
             self.assertEqual(
                 callbacks,

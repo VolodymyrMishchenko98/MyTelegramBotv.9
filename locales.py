@@ -19,6 +19,7 @@ TEXTS = {
                "<b>Профіль і цілі</b>\n/profile — переглянути профіль\n/edit_profile — змінити профіль\n/profile_visibility — налаштувати видимість полів\n/set_goal — задати тижневу ціль\n/goal — переглянути ціль\n/suggest — запропонувати тренування (потрібна мета в профілі)\n\n"
                "<b>Завдання та нагороди</b>\n/daily — щоденне завдання\n/challenge — челендж дня\n/reminders — налаштувати нагадування\n/motivate — мотивація\n/tip — порада дня\n/wallet — монети та інвентар\n/shop — магазин\n/use — використати предмет з інвентарю\n\n"
                "<b>Дані та налаштування</b>\n/export — завантажити копію даних\n/import — імпортувати JSON (замінює поточні дані)\n/reset — видалити дані профілю після підтвердження\n/change_language — перемкнути українську й англійську\n\n"
+               "/developer — зв’язатися з розробником\n\n"
                "<b>Лише для адміністраторів з ADMIN_IDS</b>\n/admin — статистика бота\n/backup — створити резервну копію\n\n"
                "Введи /start, щоб відкрити головне меню."),
         "en": ("<b>SportBot commands</b>\n/help — this command list\n\n"
@@ -27,8 +28,28 @@ TEXTS = {
                "<b>Profile and goals</b>\n/profile — view your profile\n/edit_profile — edit your profile\n/profile_visibility — manage visible profile fields\n/set_goal — set a weekly goal\n/goal — view your goal\n/suggest — suggest a workout (requires a profile goal)\n\n"
                "<b>Tasks and rewards</b>\n/daily — daily task\n/challenge — daily challenge\n/reminders — manage reminders\n/motivate — motivation\n/tip — tip of the day\n/wallet — coins and inventory\n/shop — shop\n/use — use an inventory item\n\n"
                "<b>Data and settings</b>\n/export — download a copy of your data\n/import — import JSON (replaces current data)\n/reset — delete profile data after confirmation\n/change_language — switch between Ukrainian and English\n\n"
+               "/developer — contact the developer\n\n"
                "<b>Admins configured in ADMIN_IDS only</b>\n/admin — bot statistics\n/backup — create a database backup\n\n"
                "Send /start to open the main menu."),
+    },
+    "developer_card": {
+        "uk": ("👨‍💻 <b>Розробник SportBot</b>\n\n"
+               "Привіт! Я розробник SportBot.\n\n"
+               "Маєш пропозиції щодо покращення, питання або знайшов помилку? "
+               "Буду радий твоєму повідомленню!\n\n"
+               "Пропозиції та відгуки допомагають робити SportBot кращим 💪"),
+        "en": ("👨‍💻 <b>SportBot developer</b>\n\n"
+               "Hi! I'm the developer of SportBot.\n\n"
+               "Have a suggestion, a question, or found a bug? I'd be glad to hear from you!\n\n"
+               "Your feedback helps make SportBot better 💪"),
+    },
+    "developer_contact_button": {
+        "uk": "✉️ Написати розробнику",
+        "en": "✉️ Contact the developer",
+    },
+    "developer_contact_unavailable": {
+        "uk": "Наразі контакт розробника не налаштовано.",
+        "en": "The developer contact is not configured yet.",
     },
 }
 
