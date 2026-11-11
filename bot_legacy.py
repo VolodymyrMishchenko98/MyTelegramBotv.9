@@ -6,6 +6,7 @@ import sqlite3
 import re
 import html
 import json
+from collections import OrderedDict
 from datetime import datetime, timedelta
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import random
@@ -51,13 +52,17 @@ from services.developer_feedback import ensure_feedback_tables
 from services.training_programs import ensure_program_tables
 from handlers.workouts import _workout_note_keyboard
 from handlers.keyboards import (
+    activities_home_keyboard,
     add_home_button,
     add_navigation_button,
     data_management_keyboard,
+    economy_home_keyboard,
+    inspiration_home_keyboard,
     language_settings_keyboard,
     profile_actions_keyboard,
     profile_return_keyboard,
     reminders_settings_keyboard,
+    sections_keyboard,
     settings_keyboard,
     settings_return_keyboard,
 )
@@ -241,36 +246,42 @@ def reset_keyboard(lang: str) -> InlineKeyboardMarkup:
 
 
 def suggest_keyboard(lang: str) -> InlineKeyboardMarkup:
-    return add_home_button(InlineKeyboardMarkup(inline_keyboard=[[
+    markup = InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(text=t_pair(lang, "✅ Виконав", "✅ Done"), callback_data="suggest_done"),
         InlineKeyboardButton(text=t_pair(lang, "🔁 Інша", "🔁 Another"), callback_data="suggest_retry")
-    ]]), lang)
+    ]])
+    return add_navigation_button(markup, lang, "inspiration_back_button", "inspiration_home")
 
 
 def challenge_keyboard(lang: str) -> InlineKeyboardMarkup:
-    return add_home_button(InlineKeyboardMarkup(inline_keyboard=[[
+    markup = InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(text=t_pair(lang, "✅ Зробив", "✅ Done"), callback_data="challenge_done"),
         InlineKeyboardButton(text=t_pair(lang, "🔁 Інший челендж", "🔁 Another challenge"), callback_data="challenge_next")
-    ]]), lang)
+    ]])
+    markup = add_navigation_button(markup, lang, "activities_daily_button", "activities_daily")
+    return add_navigation_button(markup, lang, "activities_back_button", "activities_home")
 
 
 def daily_task_keyboard(lang: str, task: dict, completed: bool, date_text: str = None) -> InlineKeyboardMarkup:
     date_text = date_text or datetime.now().strftime("%Y-%m-%d")
     if completed:
-        return add_home_button(InlineKeyboardMarkup(inline_keyboard=[[
+        markup = InlineKeyboardMarkup(inline_keyboard=[[
             InlineKeyboardButton(
                 text=t_pair(lang, "✅ Виконано", "✅ Completed"),
                 callback_data=f"daily_done_{date_text}"
             )
-        ]]), lang)
+        ]])
+    else:
+        unit = t_pair(lang, task["uk_unit"], task["en_unit"])
+        markup = InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(
+                text=f"+{task['step']} {unit}",
+                callback_data=f"daily_add_{date_text}"
+            )
+        ]])
 
-    unit = t_pair(lang, task["uk_unit"], task["en_unit"])
-    return add_home_button(InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(
-            text=f"+{task['step']} {unit}",
-            callback_data=f"daily_add_{date_text}"
-        )
-    ]]), lang)
+    markup = add_navigation_button(markup, lang, "activities_challenge_button", "activities_challenge")
+    return add_navigation_button(markup, lang, "activities_back_button", "activities_home")
 
 
 def shop_keyboard(lang: str) -> InlineKeyboardMarkup:
@@ -288,7 +299,12 @@ def shop_keyboard(lang: str) -> InlineKeyboardMarkup:
             )
         ])
 
-    return add_home_button(InlineKeyboardMarkup(inline_keyboard=rows), lang)
+    return economy_navigation_keyboard(
+        InlineKeyboardMarkup(inline_keyboard=rows),
+        lang,
+        inventory=True,
+        use=True,
+    )
 
 
 def shop_category_keyboard(lang: str, category: str, user_level: int = 1) -> InlineKeyboardMarkup:
@@ -315,7 +331,7 @@ def shop_category_keyboard(lang: str, category: str, user_level: int = 1) -> Inl
         rows.append([
             InlineKeyboardButton(
                 text=text,
-                callback_data=f"shop_buy_{item_id}"
+                callback_data=f"shop_buy_{item_id}:{uuid.uuid4().hex[:8]}"
             )
         ])
 
@@ -327,7 +343,12 @@ def shop_category_keyboard(lang: str, category: str, user_level: int = 1) -> Inl
         )
     ])
 
-    return add_home_button(InlineKeyboardMarkup(inline_keyboard=rows), lang)
+    return economy_navigation_keyboard(
+        InlineKeyboardMarkup(inline_keyboard=rows),
+        lang,
+        inventory=True,
+        use=True,
+    )
 
 
 # Константи для обмежень
@@ -2472,18 +2493,22 @@ def use_item_from_inventory(user_id: int, item_id: str) -> tuple[bool, str, str]
 
 @dp.message(Command("use"))
 async def use_item(message: Message):
-    """Show inventory to use items."""
-    uid = message.from_user.id
-    lang = get_user_language(uid)
-    items = get_user_items(uid)
-    
+    await show_inventory(message, message.from_user.id)
+
+
+async def show_inventory(message: Message, user_id: int, *, edit: bool = False) -> None:
+    lang = get_user_language(user_id)
+    items = get_user_items(user_id)
+
     if not items:
-        await message.answer(
-            t_pair(lang, "У вас немає предметів для використання. Купіть в /shop", "No items to use. Buy in /shop"),
-            reply_markup=add_home_button(None, lang),
+        markup = economy_navigation_keyboard(None, lang, shop=True, inventory=True)
+        display = message.edit_text if edit else message.answer
+        await display(
+            t("economy_use_empty", lang),
+            reply_markup=markup,
         )
         return
-    
+
     rows = []
     for item_id, count in items.items():
         item = SHOP_ITEMS.get(item_id)
@@ -2496,10 +2521,17 @@ async def use_item(message: Message):
                     callback_data=f"use_item_{item_id}"
                 )
             ])
-    
-    await message.answer(
-        t_pair(lang, "Оберіть предмет для використання:", "Choose an item to use:"),
-        reply_markup=add_home_button(InlineKeyboardMarkup(inline_keyboard=rows), lang)
+
+    markup = economy_navigation_keyboard(
+        InlineKeyboardMarkup(inline_keyboard=rows),
+        lang,
+        shop=True,
+        inventory=True,
+    )
+    display = message.edit_text if edit else message.answer
+    await display(
+        t("economy_use_prompt", lang),
+        reply_markup=markup,
     )
 
 
@@ -2515,14 +2547,15 @@ async def use_item_callback(callback: CallbackQuery):
         item = SHOP_ITEMS.get(item_id, {})
         name = t_pair(lang, item.get("uk_name", ""), item.get("en_name", ""))
         await callback.message.edit_text(
-            f"✅ {name} використано!\n\n{result}",
+            f"✅ {name} {t('economy_item_used', lang)}!\n\n{result}",
             parse_mode="HTML",
-            reply_markup=add_home_button(None, lang),
+            reply_markup=economy_navigation_keyboard(None, lang, shop=True, inventory=True),
         )
     else:
+        error_text = t("economy_item_missing", lang) if msg == "Item not found" else msg
         await callback.message.edit_text(
-            t_pair(lang, f"❌ {msg}", f"❌ {msg}"),
-            reply_markup=add_home_button(None, lang),
+            f"❌ {error_text}",
+            reply_markup=economy_navigation_keyboard(None, lang, shop=True, inventory=True),
         )
 
 
@@ -2540,6 +2573,10 @@ def welcome_keyboard(lang: str) -> InlineKeyboardMarkup:
             text=t("settings_open_button", lang),
             callback_data="settings_home",
         )],
+        [InlineKeyboardButton(
+            text=t("sections_open_button", lang),
+            callback_data="welcome_sections",
+        )],
         [InlineKeyboardButton(text="❓ Як користуватися" if lang == "uk" else "❓ How to use", callback_data="welcome_help")],
         [InlineKeyboardButton(
             text=t("developer_contact_button", lang),
@@ -2551,6 +2588,79 @@ def welcome_keyboard(lang: str) -> InlineKeyboardMarkup:
         callback_data="welcome_lang_en" if lang == "uk" else "welcome_lang_uk",
     )])
     return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+async def show_sections_menu(message: Message, user_id: int, *, edit: bool = False) -> None:
+    lang = get_user_language(user_id)
+    display = message.edit_text if edit else message.answer
+    await display(
+        style_block(t("sections_title", lang), t("sections_description", lang), icon="🧭"),
+        parse_mode="HTML",
+        reply_markup=sections_keyboard(lang),
+    )
+
+
+@dp.callback_query(F.data == "welcome_sections")
+async def welcome_sections(callback: CallbackQuery) -> None:
+    await callback.answer()
+    await show_sections_menu(callback.message, callback.from_user.id, edit=True)
+
+
+def economy_navigation_keyboard(
+    markup: InlineKeyboardMarkup | None,
+    lang: str,
+    *,
+    shop: bool = False,
+    inventory: bool = False,
+    use: bool = False,
+) -> InlineKeyboardMarkup:
+    if shop:
+        markup = add_navigation_button(markup, lang, "economy_shop_button", "economy_shop")
+    if inventory:
+        markup = add_navigation_button(markup, lang, "economy_inventory_button", "economy_inventory")
+    if use:
+        markup = add_navigation_button(markup, lang, "economy_use_button", "economy_use")
+    markup = add_navigation_button(markup, lang, "economy_back_button", "economy_home")
+    return add_home_button(markup, lang)
+
+
+async def show_economy_home(message: Message, user_id: int, *, edit: bool = False) -> None:
+    lang = get_user_language(user_id)
+    balance = get_coin_balance(user_id)
+    display = message.edit_text if edit else message.answer
+    await display(
+        style_block(
+            t("economy_title", lang),
+            t("economy_description", lang).format(balance=balance),
+            icon="🛍",
+        ),
+        parse_mode="HTML",
+        reply_markup=economy_home_keyboard(lang),
+    )
+
+
+@dp.callback_query(F.data == "economy_home")
+async def economy_home(callback: CallbackQuery) -> None:
+    await callback.answer()
+    await show_economy_home(callback.message, callback.from_user.id, edit=True)
+
+
+@dp.callback_query(F.data == "economy_shop")
+async def economy_shop(callback: CallbackQuery) -> None:
+    await callback.answer()
+    await show_shop(callback.message, callback.from_user.id, edit=True)
+
+
+@dp.callback_query(F.data == "economy_inventory")
+async def economy_inventory(callback: CallbackQuery) -> None:
+    await callback.answer()
+    await show_wallet(callback.message, callback.from_user.id, edit=True)
+
+
+@dp.callback_query(F.data == "economy_use")
+async def economy_use(callback: CallbackQuery) -> None:
+    await callback.answer()
+    await show_inventory(callback.message, callback.from_user.id, edit=True)
 
 
 async def show_settings(message: Message, user_id: int, *, edit: bool = False) -> None:
@@ -3066,14 +3176,13 @@ async def weekly_goal_set(callback: CallbackQuery) -> None:
     await prompt_weekly_goal(callback.message, callback.from_user.id, lang, edit=True)
 
 
-@dp.message(Command("daily"))
-async def daily(message: Message):
+async def show_daily_task(message: Message, user_id: int, *, edit: bool = False) -> None:
+    lang = get_user_language(user_id)
     try:
-        uid = message.from_user.id
-        lang = get_user_language(uid)
-        date_text, _, task, progress, completed = get_or_create_daily_task(uid)
+        date_text, _, task, progress, completed = get_or_create_daily_task(user_id)
 
-        await message.answer(
+        display = message.edit_text if edit else message.answer
+        await display(
             style_block(
                 t_pair(lang, "Щоденне завдання", "Daily task"),
                 build_daily_task_text(lang, task, progress, completed),
@@ -3083,9 +3192,62 @@ async def daily(message: Message):
             reply_markup=daily_task_keyboard(lang, task, completed, date_text)
         )
     except Exception as exc:
-        log.error("/daily handler error: %s", exc, exc_info=True)
-        await message.answer("❌ Error in daily command")
+        log.error("Daily task screen error: %s", exc, exc_info=True)
+        await message.answer(t("activities_error", lang))
     return
+
+
+async def show_activities_home(message: Message, user_id: int, *, edit: bool = False) -> None:
+    lang = get_user_language(user_id)
+    _, _, task, progress, completed = get_or_create_daily_task(user_id)
+    body = (
+        f"{t('activities_description', lang)}\n\n"
+        f"{build_daily_task_text(lang, task, progress, completed)}"
+    )
+    display = message.edit_text if edit else message.answer
+    await display(
+        style_block(t("activities_title", lang), body, icon="🎮"),
+        parse_mode="HTML",
+        reply_markup=activities_home_keyboard(lang),
+    )
+
+
+async def show_challenge(message: Message, user_id: int, *, edit: bool = False) -> None:
+    lang = get_user_language(user_id)
+    challenge_text = get_fitness_challenge(lang)
+    display = message.edit_text if edit else message.answer
+    await display(
+        style_block(
+            t("activities_challenge_title", lang),
+            f"🔥 {challenge_text}",
+            icon="🏆",
+        ),
+        parse_mode="HTML",
+        reply_markup=challenge_keyboard(lang),
+    )
+
+
+@dp.callback_query(F.data == "activities_home")
+async def activities_home(callback: CallbackQuery) -> None:
+    await callback.answer()
+    await show_activities_home(callback.message, callback.from_user.id, edit=True)
+
+
+@dp.callback_query(F.data == "activities_daily")
+async def activities_daily(callback: CallbackQuery) -> None:
+    await callback.answer()
+    await show_daily_task(callback.message, callback.from_user.id, edit=True)
+
+
+@dp.callback_query(F.data == "activities_challenge")
+async def activities_challenge(callback: CallbackQuery) -> None:
+    await callback.answer()
+    await show_challenge(callback.message, callback.from_user.id, edit=True)
+
+
+@dp.message(Command("daily"))
+async def daily(message: Message):
+    await show_daily_task(message, message.from_user.id)
 
 
 @dp.callback_query(lambda c: c.data and c.data.startswith("daily_"))
@@ -3176,80 +3338,58 @@ async def daily_progress(callback: CallbackQuery):
 
 @dp.message(Command("wallet"))
 async def wallet(message: Message):
-    try:
-        uid = message.from_user.id
-        lang = get_user_language(uid)
-        balance = get_coin_balance(uid)
-        items = get_user_items(uid)
+    await show_wallet(message, message.from_user.id)
 
-        if items:
-            item_lines = []
-            for item_id, count in items.items():
-                item = SHOP_ITEMS.get(item_id)
-                if item:
-                    item_lines.append(f"• {t_pair(lang, item['uk_name'], item['en_name'])}: {count}")
-            inventory = "\n".join(item_lines)
-        else:
-            inventory = t_pair(lang, "Покупок ще немає.", "No purchases yet.")
 
-        await message.answer(
-            style_block(
-                t_pair(lang, "Гаманець", "Wallet"),
-                t_pair(
-                    lang,
-                    f"🪙 Баланс: {balance}\n\n🎒 Покупки:\n{inventory}\n\nМагазин: /shop",
-                    f"🪙 Balance: {balance}\n\n🎒 Purchases:\n{inventory}\n\nShop: /shop"
-                ),
-                icon="💰"
-            ),
-            parse_mode="HTML",
-            reply_markup=add_home_button(None, lang),
-        )
-    except Exception as exc:
-        log.error("/wallet handler error: %s", exc, exc_info=True)
-        await message.answer("❌ Error in wallet command")
-    return
+async def show_wallet(message: Message, user_id: int, *, edit: bool = False) -> None:
+    lang = get_user_language(user_id)
+    balance = get_coin_balance(user_id)
+    items = get_user_items(user_id)
+
+    if items:
+        item_lines = []
+        for item_id, count in items.items():
+            item = SHOP_ITEMS.get(item_id)
+            if item:
+                item_lines.append(f"• {t_pair(lang, item['uk_name'], item['en_name'])}: {count}")
+        inventory = "\n".join(item_lines)
+    else:
+        inventory = t("economy_inventory_empty", lang)
+
+    text = style_block(
+        t_pair(lang, "Гаманець", "Wallet"),
+        t_pair(
+            lang,
+            f"🪙 Баланс: {balance}\n\n🎒 Покупки:\n{inventory}\n\nМагазин: /shop",
+            f"🪙 Balance: {balance}\n\n🎒 Purchases:\n{inventory}\n\nShop: /shop"
+        ),
+        icon="💰"
+    )
+    markup = economy_navigation_keyboard(None, lang, shop=True, use=True)
+    display = message.edit_text if edit else message.answer
+    await display(text, parse_mode="HTML", reply_markup=markup)
 
 
 @dp.message(Command("shop"))
 async def shop(message: Message):
+    await show_shop(message, message.from_user.id)
+
+
+async def show_shop(message: Message, user_id: int, *, edit: bool = False) -> None:
+    lang = get_user_language(user_id)
     try:
-        uid = message.from_user.id
-        lang = get_user_language(uid)
-        
-        # Обеспечиваем существование пользователя
-        ensure_user(uid)
-        
-        # Безопасно получаем баланс
-        balance = get_coin_balance(uid)
-        
-        # Формируем текст со структурированной информацией
+        ensure_user(user_id)
+        balance = get_coin_balance(user_id)
         header = t_pair(
             lang,
             f"🛒 Магазин Спортсмена\n\n🪙 Баланс: {balance} монет\n\nОберіть категорію товара:",
             f"🛒 Sports Shop\n\n🪙 Balance: {balance} coins\n\nChoose a category:"
         )
-        
-        try:
-            # Отправляем сообщение с клавиатурой категорий
-            await message.answer(
-                header,
-                parse_mode=None,
-                reply_markup=shop_keyboard(lang)
-            )
-        except Exception as exc:
-            log.error("/shop inner handler error: %s", exc, exc_info=True)
-            # Fallback ответ
-            await message.answer(
-                t_pair(
-                    lang,
-                    f"🛒 Магазин\n\n🪙 Баланс: {balance} монет\n\nИспользуйте кнопки для навигации.",
-                    f"🛒 Shop\n\n🪙 Balance: {balance} coins\n\nUse buttons to navigate."
-                )
-            )
+        display = message.edit_text if edit else message.answer
+        await display(header, parse_mode=None, reply_markup=shop_keyboard(lang))
     except Exception as exc:
         log.error("/shop handler error: %s", exc, exc_info=True)
-        await message.answer("❌ Error in shop command")
+        await message.answer(t("economy_shop_error", lang))
     return
 
 
@@ -3305,137 +3445,163 @@ async def shop_back_to_categories(callback: CallbackQuery):
         )
 
 
+_shop_purchase_in_progress: set[tuple[int, int, int, str, str]] = set()
+_shop_purchase_completed: OrderedDict[tuple[int, int, int, str, str], None] = OrderedDict()
+
+
+def _shop_purchase_key(callback: CallbackQuery, item_id: str, token: str | None):
+    chat_id = callback.message.chat.id
+    message_id = callback.message.message_id
+    purchase_token = token or f"legacy:{chat_id}:{message_id}:{item_id}"
+    return callback.from_user.id, chat_id, message_id, item_id, purchase_token
+
+
+def _finish_shop_purchase(key: tuple[int, int, int, str, str], completed: bool) -> None:
+    _shop_purchase_in_progress.discard(key)
+    if not completed:
+        return
+    _shop_purchase_completed[key] = None
+    _shop_purchase_completed.move_to_end(key)
+    while len(_shop_purchase_completed) > 2048:
+        _shop_purchase_completed.popitem(last=False)
+
+
 @dp.callback_query(F.data.startswith("shop_buy_"))
 async def shop_buy(callback: CallbackQuery):
     uid = callback.from_user.id
     lang = get_user_language(uid)
     ensure_user(uid)
-    item_id = callback.data.replace("shop_buy_", "", 1)
+    payload = callback.data[len("shop_buy_"):]
+    item_id, separator, token = payload.partition(":")
     item = SHOP_ITEMS.get(item_id)
 
     if not item:
         await callback.answer(t_pair(lang, "Товар не знайдено", "Item not found"), show_alert=True)
         return
 
-    # Level-gate check
-    min_lvl = item.get("min_level", 1)
-    user_lvl = get_user_xp_level(uid).get("level", 1)
-    if user_lvl < min_lvl:
-        await callback.answer(
-            t_pair(
-                lang,
-                f"🔒 Потрібен рівень {min_lvl}. Твій рівень: {user_lvl}. Підвищуй XP тренуваннями!",
-                f"🔒 Level {min_lvl} required. Your level: {user_lvl}. Train more to earn XP!",
-            ),
-            show_alert=True
-        )
+    key = _shop_purchase_key(callback, item_id, token if separator else None)
+    if key in _shop_purchase_in_progress or key in _shop_purchase_completed:
+        await callback.answer(t("economy_purchase_duplicate", lang))
         return
+    _shop_purchase_in_progress.add(key)
+    purchase_completed = False
 
-    paid, balance, status = buy_shop_item(uid, item_id, item["cost"])
-    
-    if status == "limit_exceeded":
-        max_count = item.get('max_count', 1)
-        await callback.answer(
-            t_pair(
-                lang,
-                f"Макс куплено: {max_count} шт. Вижраних: /wallet",
-                f"Maximum purchased: {max_count}. View: /wallet"
-            ),
-            show_alert=True
+    try:
+        min_lvl = item.get("min_level", 1)
+        user_lvl = get_user_xp_level(uid).get("level", 1)
+        if user_lvl < min_lvl:
+            await callback.answer(
+                t_pair(
+                    lang,
+                    f"🔒 Потрібен рівень {min_lvl}. Твій рівень: {user_lvl}. Підвищуй XP тренуваннями!",
+                    f"🔒 Level {min_lvl} required. Your level: {user_lvl}. Train more to earn XP!",
+                ),
+                show_alert=True
+            )
+            return
+
+        paid, balance, status = buy_shop_item(uid, item_id, item["cost"])
+
+        if status == "limit_exceeded":
+            max_count = item.get("max_count", 1)
+            await callback.answer(
+                t_pair(
+                    lang,
+                    f"Макс куплено: {max_count} шт. Переглянь /wallet",
+                    f"Maximum purchased: {max_count}. View: /wallet"
+                ),
+                show_alert=True
+            )
+            return
+
+        if status == "insufficient_coins":
+            await callback.answer(
+                t_pair(
+                    lang,
+                    f"Не вистачає монет. Баланс: {balance}",
+                    f"Not enough coins. Balance: {balance}"
+                ),
+                show_alert=True
+            )
+            return
+
+        if not paid or status != "success":
+            await callback.answer(t("economy_purchase_failed", lang), show_alert=True)
+            return
+
+        purchase_completed = True
+        item_name = t_pair(lang, item["uk_name"], item["en_name"])
+        item_desc = t_pair(lang, item["uk_desc"], item["en_desc"])
+        item_type = item.get("type", "unknown")
+        base_msg = t_pair(
+            lang,
+            f"✅ {item_name}\n🪙 Баланс: {balance}",
+            f"✅ {item_name}\n🪙 Balance: {balance}"
         )
-        return
-    
-    if status == "insufficient_coins":
-        await callback.answer(
-            t_pair(
-                lang,
-                f"Не вистачає монет. Баланс: {balance}",
-                f"Not enough coins. Balance: {balance}"
-            ),
-            show_alert=True
-        )
-        return
 
-    # При успешной покупке генерируем разные отговеты в зависимости от типа
-    item_name = t_pair(lang, item['uk_name'], item['en_name'])
-    item_desc = t_pair(lang, item['uk_desc'], item['en_desc'])
-    item_type = item.get('type', 'unknown')
-
-    # Основное сообщение
-    base_msg = t_pair(
-        lang,
-        f"✅ {item_name}\n🪙 Баланс: {balance}",
-        f"✅ {item_name}\n🪙 Balance: {balance}"
-    )
-
-    # Генерируем содержимое в зависимости от типа
-    if item_type == "functional":
-        if item_id == "power_plan":
-            body = f"{base_msg}\n\n{get_premium_workout(lang)}"
-        elif item_id == "monthly_program":
-            body = t_pair(
-                lang,
-                f"{base_msg}\n\n📅 30 днів модуля:\n• Тиждень 1: Основа\n• Тиждень 2-3: Настроювання\n• Тиждень 4: Пік\n\nВицавлено наовна в /магазині",
-                f"{base_msg}\n\n📅 30-day progression:\n• Week 1: Foundation\n• Week 2-3: Building\n• Week 4: Peak\n\nStart now: /profile"
-            )
-        elif item_id == "home_gym":
-            body = t_pair(
-                lang,
-                f"{base_msg}\n\n🏠 40+ вправ без обладнання!\nУсо в /wallet",
-                f"{base_msg}\n\n🏠 40+ bodyweight exercises!\nOpen: /wallet"
-            )
-        elif item_id == "hiit_protocol":
-            body = t_pair(
-                lang,
-                f"{base_msg}\n\n🔥 HIIT - 20 мін для максимального ефекту калорій",
-                f"{base_msg}\n\n🔥 20-min intervals for max calorie burn"
-            )
-        elif item_id == "sleep_guide":
-            body = t_pair(
-                lang,
-                f"{base_msg}\n\n😴 Таємниці сну атлета: Оптимальна температура, час сну",
-                f"{base_msg}\n\n😴 Athlete's sleep formula: temp, timing, duration"
-            )
-        else:
-            body = f"{base_msg}\n\n{item_desc}"
-
-    elif item_type == "consumable":
-        if item_id == "motivation_pack":
-            quotes = "\n".join(f"• {get_motivation_quote(lang)}" for _ in range(3))
-            body = f"{base_msg}\n\n{quotes}"
-        elif item_id == "energy_drink":
-            body = t_pair(
-                lang,
-                f"{base_msg}\n\n🥤 Зарядився! 🤸\nТепер рязва пітти води і тренуватися!",
-                f"{base_msg}\n\n🥤 Powered up! 🤸\nTime to crush it!"
-            )
-        else:
-            body = f"{base_msg}\n\n✨ {item_desc}"
-
-    elif item_type == "booster":
-        if item_id == "coin_booster_x2":
-            body = t_pair(
-                lang,
-                f"{base_msg}\n\n🪙 × 2 МОНЕТ на 7 днів!\nВсі тренування = 2x рівардс",
-                f"{base_msg}\n\n🪙 × 2 COINS for 7 days!\nAll workouts = 2x rewards"
-            )
-        elif item_id == "restore_stamina":
-            body = t_pair(
-                lang,
-                f"{base_msg}\n\n⚡ Відновлено!\nКільканка чотири години активності.",
-                f"{base_msg}\n\n⚡ Restored!\n4 hours of active energy."
-            )
-        elif item_id == "skip_daily_task":
-            body = t_pair(
-                lang,
-                f"{base_msg}\n\n⏭️ Топ (день) випало!",
-                f"{base_msg}\n\n⏭️ Daily task skipped penalty-free!"
-            )
-        else:
-            body = f"{base_msg}\n\n⚡ {item_desc}"
-
-    else:  # collectible + exclusive
-        if item_id == "legendary_pack":
+        if item_type == "functional":
+            if item_id == "power_plan":
+                body = f"{base_msg}\n\n{get_premium_workout(lang)}"
+            elif item_id == "monthly_program":
+                body = t_pair(
+                    lang,
+                    f"{base_msg}\n\n📅 30 днів модуля:\n• Тиждень 1: Основа\n• Тиждень 2-3: Настроювання\n• Тиждень 4: Пік\n\nВицавлено наовна в /магазині",
+                    f"{base_msg}\n\n📅 30-day progression:\n• Week 1: Foundation\n• Week 2-3: Building\n• Week 4: Peak\n\nStart now: /profile"
+                )
+            elif item_id == "home_gym":
+                body = t_pair(
+                    lang,
+                    f"{base_msg}\n\n🏠 40+ вправ без обладнання!\nУсо в /wallet",
+                    f"{base_msg}\n\n🏠 40+ bodyweight exercises!\nOpen: /wallet"
+                )
+            elif item_id == "hiit_protocol":
+                body = t_pair(
+                    lang,
+                    f"{base_msg}\n\n🔥 HIIT - 20 мін для максимального ефекту калорій",
+                    f"{base_msg}\n\n🔥 20-min intervals for max calorie burn"
+                )
+            elif item_id == "sleep_guide":
+                body = t_pair(
+                    lang,
+                    f"{base_msg}\n\n😴 Таємниці сну атлета: Оптимальна температура, час сну",
+                    f"{base_msg}\n\n😴 Athlete's sleep formula: temp, timing, duration"
+                )
+            else:
+                body = f"{base_msg}\n\n{item_desc}"
+        elif item_type == "consumable":
+            if item_id == "motivation_pack":
+                quotes = "\n".join(f"• {get_motivation_quote(lang)}" for _ in range(3))
+                body = f"{base_msg}\n\n{quotes}"
+            elif item_id == "energy_drink":
+                body = t_pair(
+                    lang,
+                    f"{base_msg}\n\n🥤 Зарядився! 🤸\nТепер рязва пітти води і тренуватися!",
+                    f"{base_msg}\n\n🥤 Powered up! 🤸\nTime to crush it!"
+                )
+            else:
+                body = f"{base_msg}\n\n✨ {item_desc}"
+        elif item_type == "booster":
+            if item_id == "coin_booster_x2":
+                body = t_pair(
+                    lang,
+                    f"{base_msg}\n\n🪙 × 2 МОНЕТ на 7 днів!\nВсі тренування = 2x рівардс",
+                    f"{base_msg}\n\n🪙 × 2 COINS for 7 days!\nAll workouts = 2x rewards"
+                )
+            elif item_id == "restore_stamina":
+                body = t_pair(
+                    lang,
+                    f"{base_msg}\n\n⚡ Відновлено!\nКільканка чотири години активності.",
+                    f"{base_msg}\n\n⚡ Restored!\n4 hours of active energy."
+                )
+            elif item_id == "skip_daily_task":
+                body = t_pair(
+                    lang,
+                    f"{base_msg}\n\n⏭️ Топ (день) випало!",
+                    f"{base_msg}\n\n⏭️ Daily task skipped penalty-free!"
+                )
+            else:
+                body = f"{base_msg}\n\n⚡ {item_desc}"
+        elif item_id == "legendary_pack":
             body = t_pair(
                 lang,
                 f"{base_msg}\n\n🌟 ЛЕГЕНДА! 🌟\nОвдточено всі доступні бонуси!\nОбмежено кілька годин.",
@@ -3450,18 +3616,26 @@ async def shop_buy(callback: CallbackQuery):
         else:
             body = f"{base_msg}\n\n🌟 {item_desc}"
 
-    purchase_navigation = InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(
-            text=t_pair(lang, "⬅️ До магазину", "⬅️ Back to shop"),
-            callback_data=f"shop_cat_{item.get('category', 'Інше')}",
+        purchase_navigation = InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(
+                text=t_pair(lang, "⬅️ До магазину", "⬅️ Back to shop"),
+                callback_data=f"shop_cat_{item.get('category', 'Інше')}",
+            )
+        ]])
+        purchase_navigation = economy_navigation_keyboard(
+            purchase_navigation,
+            lang,
+            inventory=True,
+            use=True,
         )
-    ]])
-    await callback.message.edit_text(
-        style_block(t_pair(lang, "✅ Покупку завершено", "✅ Purchase complete"), body, icon="🛒"),
-        parse_mode="HTML",
-        reply_markup=add_home_button(purchase_navigation, lang),
-    )
-    await callback.answer(t_pair(lang, "🌟 Отмено!", "🌟 Awesome!"))
+        await callback.message.edit_text(
+            style_block(t_pair(lang, "✅ Покупку завершено", "✅ Purchase complete"), body, icon="🛒"),
+            parse_mode="HTML",
+            reply_markup=purchase_navigation,
+        )
+        await callback.answer(t_pair(lang, "🌟 Чудово!", "🌟 Awesome!"))
+    finally:
+        _finish_shop_purchase(key, purchase_completed)
 
 
 @dp.message(Command("reminders"))
@@ -3614,81 +3788,130 @@ async def reminders_off(callback: CallbackQuery):
         log.debug("reminders_off callback: edit_text failed (harmless): %s", exc)
 
 
-@dp.message(Command("suggest"))
-async def suggest(message: Message):
-    lang = get_user_language(message.from_user.id)
+async def show_suggest(message: Message, user_id: int, *, edit: bool = False) -> None:
+    lang = get_user_language(user_id)
     db = get_db()
     cur = db.cursor()
-    cur.execute("SELECT goal FROM users WHERE user_id=?", (message.from_user.id,))
+    cur.execute("SELECT goal FROM users WHERE user_id=?", (user_id,))
     row = cur.fetchone()
     db.close()
 
     if not row or not row[0]:
-        await message.answer(
-            t_pair(lang, "Спочатку задай мету в профілі (/profile).", "Set a goal in your profile first (/profile)."),
-            reply_markup=add_home_button(None, lang),
+        display = message.edit_text if edit else message.answer
+        await display(
+            t("inspiration_goal_required", lang),
+            reply_markup=add_navigation_button(
+                None,
+                lang,
+                "inspiration_back_button",
+                "inspiration_home",
+            ),
         )
         return
 
     text = generate_workout(row[0], lang)
-    await message.answer(text, reply_markup=suggest_keyboard(lang))
+    display = message.edit_text if edit else message.answer
+    await display(text, reply_markup=suggest_keyboard(lang))
+
+
+async def show_motivation(message: Message, user_id: int, *, edit: bool = False) -> None:
+    lang = get_user_language(user_id)
+    quote = get_motivation_quote(lang)
+    markup = add_navigation_button(
+        None, lang, "inspiration_suggest_button", "inspiration_suggest"
+    )
+    markup = add_navigation_button(
+        markup, lang, "inspiration_tip_button", "inspiration_tip"
+    )
+    markup = add_navigation_button(
+        markup, lang, "inspiration_back_button", "inspiration_home"
+    )
+    display = message.edit_text if edit else message.answer
+    await display(
+        style_block(t("inspiration_motivation_title", lang), f"💬 {quote}", icon="🚀"),
+        parse_mode="HTML",
+        reply_markup=markup,
+    )
+
+
+async def show_tip(message: Message, user_id: int, *, edit: bool = False) -> None:
+    lang = get_user_language(user_id)
+    tip_text = get_health_tip(lang)
+    markup = add_navigation_button(
+        None, lang, "inspiration_suggest_button", "inspiration_suggest"
+    )
+    markup = add_navigation_button(
+        markup, lang, "inspiration_motivate_button", "inspiration_motivate"
+    )
+    markup = add_navigation_button(
+        markup, lang, "inspiration_back_button", "inspiration_home"
+    )
+    display = message.edit_text if edit else message.answer
+    await display(
+        style_block(t("inspiration_tip_title", lang), f"💡 {tip_text}", icon="🧠"),
+        parse_mode="HTML",
+        reply_markup=markup,
+    )
+
+
+async def show_inspiration_home(message: Message, user_id: int, *, edit: bool = False) -> None:
+    lang = get_user_language(user_id)
+    display = message.edit_text if edit else message.answer
+    await display(
+        style_block(t("inspiration_title", lang), t("inspiration_description", lang), icon="💡"),
+        parse_mode="HTML",
+        reply_markup=inspiration_home_keyboard(lang),
+    )
+
+
+@dp.callback_query(F.data == "inspiration_home")
+async def inspiration_home(callback: CallbackQuery) -> None:
+    await callback.answer()
+    await show_inspiration_home(callback.message, callback.from_user.id, edit=True)
+
+
+@dp.callback_query(F.data == "inspiration_suggest")
+async def inspiration_suggest(callback: CallbackQuery) -> None:
+    await callback.answer()
+    await show_suggest(callback.message, callback.from_user.id, edit=True)
+
+
+@dp.callback_query(F.data == "inspiration_motivate")
+async def inspiration_motivate(callback: CallbackQuery) -> None:
+    await callback.answer()
+    await show_motivation(callback.message, callback.from_user.id, edit=True)
+
+
+@dp.callback_query(F.data == "inspiration_tip")
+async def inspiration_tip(callback: CallbackQuery) -> None:
+    await callback.answer()
+    await show_tip(callback.message, callback.from_user.id, edit=True)
+
+
+@dp.message(Command("suggest"))
+async def suggest(message: Message):
+    await show_suggest(message, message.from_user.id)
 
 
 @dp.message(Command("motivate"))
 async def motivate(message: Message):
-    lang = get_user_language(message.from_user.id)
-    quote = get_motivation_quote(lang)
-    title = t_pair(lang, "Мотивація", "Motivation")
-    await message.answer(
-        style_block(title, f"💬 {quote}", icon="🚀"),
-        parse_mode="HTML",
-        reply_markup=add_home_button(None, lang),
-    )
+    await show_motivation(message, message.from_user.id)
 
 
 @dp.message(Command("tip"))
 async def tip(message: Message):
-    lang = get_user_language(message.from_user.id)
-    tip_text = get_health_tip(lang)
-    title = t_pair(lang, "Порада дня", "Tip of the day")
-    await message.answer(
-        style_block(title, f"💡 {tip_text}", icon="🧠"),
-        parse_mode="HTML",
-        reply_markup=add_home_button(None, lang),
-    )
+    await show_tip(message, message.from_user.id)
 
 
 @dp.message(Command("challenge"))
 async def challenge(message: Message):
-    lang = get_user_language(message.from_user.id)
-    challenge_text = get_fitness_challenge(lang)
-    title = t_pair(lang, "Челендж дня", "Challenge of the day")
-    await message.answer(
-        style_block(title, f"🔥 {challenge_text}", icon="🏆"),
-        parse_mode="HTML",
-        reply_markup=challenge_keyboard(lang)
-    )
+    await show_challenge(message, message.from_user.id)
 
 
 @dp.callback_query(F.data == "suggest_retry")
 async def suggest_retry(callback: CallbackQuery):
-    lang = get_user_language(callback.from_user.id)
     await callback.answer()
-    db = get_db()
-    cur = db.cursor()
-    cur.execute("SELECT goal FROM users WHERE user_id=?", (callback.from_user.id,))
-    row = cur.fetchone()
-    db.close()
-
-    if not row or not row[0]:
-        await callback.message.edit_text(
-            t_pair(lang, "Немає мети", "No goal set"),
-            reply_markup=add_home_button(None, lang),
-        )
-        return
-
-    text = generate_workout(row[0], lang)
-    await callback.message.edit_text(text, reply_markup=suggest_keyboard(lang))
+    await show_suggest(callback.message, callback.from_user.id, edit=True)
 
 
 @dp.callback_query(F.data == "suggest_done")
@@ -3701,7 +3924,6 @@ async def suggest_done(callback: CallbackQuery):
 
     db = get_db()
     cur = db.cursor()
-
     cur.execute(
         "SELECT 1 FROM workouts WHERE user_id=? AND date=?",
         (uid, today)
@@ -3736,28 +3958,23 @@ async def suggest_done(callback: CallbackQuery):
         balance=sync_inf.get("balance"), sync_info=sync_inf, achievements=achievements,
     )
 
-    edit_text = (
-        callback.message.text
-        + "\n\n" + reward_text
-    )
-
+    edit_text = callback.message.text + "\n\n" + reward_text
     await callback.message.edit_text(
         edit_text,
-        reply_markup=add_home_button(None, lang),
+        reply_markup=add_navigation_button(
+            None,
+            lang,
+            "inspiration_back_button",
+            "inspiration_home",
+        ),
     )
     await callback.answer(t_pair(lang, "Нагороди нараховано", "Rewards granted"))
 
 
 @dp.callback_query(F.data == "challenge_next")
 async def challenge_next(callback: CallbackQuery):
-    lang = get_user_language(callback.from_user.id)
     await callback.answer()
-    challenge_text = get_fitness_challenge(lang)
-    await callback.message.edit_text(
-        style_block(t_pair(lang, "Челендж дня", "Challenge of the day"), f"🔥 {challenge_text}", icon="🏆"),
-        parse_mode="HTML",
-        reply_markup=challenge_keyboard(lang)
-    )
+    await show_challenge(callback.message, callback.from_user.id, edit=True)
 
 
 @dp.callback_query(F.data == "challenge_done")
@@ -3765,17 +3982,15 @@ async def challenge_done(callback: CallbackQuery):
     uid = callback.from_user.id
     lang = get_user_language(uid)
     today = datetime.now().strftime("%Y-%m-%d")
-    
-    # Extract challenge text from the message (it's between 🔥 markers)
+
     message_text = callback.message.text or ""
-    # Find the challenge text that starts with 🔥
     lines = message_text.split("\n")
     challenge_text = None
     for line in lines:
         if line.startswith("🔥"):
-            challenge_text = line[1:].strip()  # Remove 🔥 emoji
+            challenge_text = line[1:].strip()
             break
-    
+
     if not challenge_text:
         challenge_text = message_text
 
@@ -3809,14 +4024,15 @@ async def challenge_done(callback: CallbackQuery):
         balance=sync_inf.get("balance"), sync_info=sync_inf, achievements=achievements,
     )
 
-    edit_text = (
-        callback.message.text
-        + "\n\n" + reward_text
-    )
     await callback.message.edit_text(
-        edit_text,
+        callback.message.text + "\n\n" + reward_text,
         parse_mode="HTML",
-        reply_markup=add_home_button(None, lang),
+        reply_markup=add_navigation_button(
+            None,
+            lang,
+            "activities_daily_button",
+            "activities_daily",
+        ),
     )
     await callback.answer(t_pair(lang, "Нагороди нараховано", "Rewards granted"))
 

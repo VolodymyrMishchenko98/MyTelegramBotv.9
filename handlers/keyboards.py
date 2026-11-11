@@ -110,6 +110,37 @@ def settings_keyboard(lang: str) -> InlineKeyboardMarkup:
     ]), lang)
 
 
+def sections_keyboard(lang: str) -> InlineKeyboardMarkup:
+    return add_home_button(InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=t("sections_economy", lang), callback_data="economy_home")],
+        [InlineKeyboardButton(text=t("sections_activities", lang), callback_data="activities_home")],
+        [InlineKeyboardButton(text=t("sections_inspiration", lang), callback_data="inspiration_home")],
+    ]), lang)
+
+
+def economy_home_keyboard(lang: str) -> InlineKeyboardMarkup:
+    return add_home_button(InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=t("economy_shop_button", lang), callback_data="economy_shop")],
+        [InlineKeyboardButton(text=t("economy_inventory_button", lang), callback_data="economy_inventory")],
+        [InlineKeyboardButton(text=t("economy_use_button", lang), callback_data="economy_use")],
+    ]), lang)
+
+
+def activities_home_keyboard(lang: str) -> InlineKeyboardMarkup:
+    return add_home_button(InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=t("activities_daily_button", lang), callback_data="activities_daily")],
+        [InlineKeyboardButton(text=t("activities_challenge_button", lang), callback_data="activities_challenge")],
+    ]), lang)
+
+
+def inspiration_home_keyboard(lang: str) -> InlineKeyboardMarkup:
+    return add_home_button(InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=t("inspiration_suggest_button", lang), callback_data="inspiration_suggest")],
+        [InlineKeyboardButton(text=t("inspiration_motivate_button", lang), callback_data="inspiration_motivate")],
+        [InlineKeyboardButton(text=t("inspiration_tip_button", lang), callback_data="inspiration_tip")],
+    ]), lang)
+
+
 def profile_actions_keyboard(lang: str) -> InlineKeyboardMarkup:
     return add_home_button(InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=t("settings_profile_edit", lang), callback_data="profile_edit_open")],

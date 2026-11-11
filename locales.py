@@ -16,6 +16,150 @@ TEXTS = {
         "uk": "⚙️ Налаштування",
         "en": "⚙️ Settings",
     },
+    "sections_open_button": {
+        "uk": "🧭 Інші розділи",
+        "en": "🧭 More sections",
+    },
+    "sections_title": {
+        "uk": "Розділи SportBot",
+        "en": "SportBot sections",
+    },
+    "sections_description": {
+        "uk": "Обери, чим хочеш зайнятися.",
+        "en": "Choose what you'd like to do.",
+    },
+    "sections_economy": {
+        "uk": "🛍 Магазин та інвентар",
+        "en": "🛍 Shop and inventory",
+    },
+    "sections_activities": {
+        "uk": "🎮 Активності",
+        "en": "🎮 Activities",
+    },
+    "sections_inspiration": {
+        "uk": "💡 Натхнення та тренування",
+        "en": "💡 Inspiration and workouts",
+    },
+    "economy_title": {
+        "uk": "Магазин та інвентар",
+        "en": "Shop and inventory",
+    },
+    "economy_description": {
+        "uk": "Баланс: {balance} монет. Переглядай товари або керуй своїми предметами.",
+        "en": "Balance: {balance} coins. Browse items or manage your inventory.",
+    },
+    "economy_shop_button": {
+        "uk": "🛒 Відкрити магазин",
+        "en": "🛒 Open shop",
+    },
+    "economy_inventory_button": {
+        "uk": "🎒 Гаманець та інвентар",
+        "en": "🎒 Wallet and inventory",
+    },
+    "economy_use_button": {
+        "uk": "✨ Використати предмет",
+        "en": "✨ Use an item",
+    },
+    "economy_back_button": {
+        "uk": "⬅️ До магазину та інвентарю",
+        "en": "⬅️ Back to shop and inventory",
+    },
+    "economy_inventory_empty": {
+        "uk": "У вас ще немає предметів.",
+        "en": "You don't have any items yet.",
+    },
+    "economy_use_empty": {
+        "uk": "Немає предметів для використання.",
+        "en": "There are no items to use.",
+    },
+    "economy_use_prompt": {
+        "uk": "Оберіть предмет для використання:",
+        "en": "Choose an item to use:",
+    },
+    "economy_item_used": {
+        "uk": "використано",
+        "en": "used",
+    },
+    "economy_item_missing": {
+        "uk": "Предмет не знайдено.",
+        "en": "Item not found.",
+    },
+    "economy_purchase_duplicate": {
+        "uk": "Цю покупку вже оброблено.",
+        "en": "This purchase has already been processed.",
+    },
+    "economy_purchase_failed": {
+        "uk": "Не вдалося завершити покупку. Монети не списано.",
+        "en": "The purchase could not be completed. No coins were charged.",
+    },
+    "economy_shop_error": {
+        "uk": "Не вдалося відкрити магазин. Спробуйте ще раз.",
+        "en": "The shop could not be opened. Please try again.",
+    },
+    "activities_title": {
+        "uk": "Активності",
+        "en": "Activities",
+    },
+    "activities_description": {
+        "uk": "Щоденне завдання та прогрес на сьогодні:",
+        "en": "Today's daily task and progress:",
+    },
+    "activities_daily_button": {
+        "uk": "🎯 Відкрити щоденне завдання",
+        "en": "🎯 Open daily task",
+    },
+    "activities_challenge_button": {
+        "uk": "🔥 Челенджі",
+        "en": "🔥 Challenges",
+    },
+    "activities_back_button": {
+        "uk": "⬅️ До активностей",
+        "en": "⬅️ Back to activities",
+    },
+    "activities_challenge_title": {
+        "uk": "Челендж дня",
+        "en": "Challenge of the day",
+    },
+    "activities_error": {
+        "uk": "Не вдалося завантажити активність. Спробуйте ще раз.",
+        "en": "The activity could not be loaded. Please try again.",
+    },
+    "inspiration_title": {
+        "uk": "Натхнення та тренування",
+        "en": "Inspiration and workouts",
+    },
+    "inspiration_description": {
+        "uk": "Запропоновані тренування, мотивація та корисні поради.",
+        "en": "Suggested workouts, motivation, and helpful tips.",
+    },
+    "inspiration_suggest_button": {
+        "uk": "💪 Запропонувати тренування",
+        "en": "💪 Suggest a workout",
+    },
+    "inspiration_motivate_button": {
+        "uk": "🚀 Мотивація",
+        "en": "🚀 Motivation",
+    },
+    "inspiration_tip_button": {
+        "uk": "🧠 Порада",
+        "en": "🧠 Tip",
+    },
+    "inspiration_back_button": {
+        "uk": "⬅️ До натхнення та тренувань",
+        "en": "⬅️ Back to inspiration and workouts",
+    },
+    "inspiration_motivation_title": {
+        "uk": "Мотивація",
+        "en": "Motivation",
+    },
+    "inspiration_tip_title": {
+        "uk": "Порада дня",
+        "en": "Tip of the day",
+    },
+    "inspiration_goal_required": {
+        "uk": "Спочатку задай мету в профілі (/profile).",
+        "en": "Set a goal in your profile first (/profile).",
+    },
     "settings_title": {
         "uk": "Налаштування SportBot",
         "en": "SportBot settings",

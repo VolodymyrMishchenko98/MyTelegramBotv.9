@@ -54,6 +54,7 @@ class OnboardingTests(unittest.TestCase):
                 callbacks,
                 {"welcome_workout", "welcome_stats", "welcome_history", "welcome_help",
                  "devfb:open", "program:open", "settings_home",
+                 "welcome_sections",
                  "welcome_lang_en" if lang == "uk" else "welcome_lang_uk"},
             )
             welcome = t("welcome", lang)
