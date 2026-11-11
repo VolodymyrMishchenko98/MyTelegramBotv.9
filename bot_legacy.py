@@ -575,66 +575,83 @@ def style_block(title: str, body: str, icon: str = "✨") -> str:
 
 
 def build_start_text(lang: str) -> str:
-    menu_body = t_pair(
-        lang,
-        "/start — показати команди\n"
-        "/profile — профіль\n"
-        "/edit_profile — змінити профіль\n"
-        "/profile_visibility — що показувати в профілі\n"
-        "/workout — записати тренування\n"
-        "/today — сьогодні\n"
-        "/stats — статистика\n"
-        "/weight — вага\n"
-        "/reset — видалити все\n"
-        "/weight_stats — статистика ваги\n"
-        "/suggest — запропонувати тренування\n"
-        "/set_goal — встановити мету на тиждень\n"
-        "/change_language — змінити мову\n"
-        "/reminders — нагадування\n"
-        "/goal — показати мету на тиждень\n"
-        "/daily — щоденне завдання\n"
-        "/wallet — баланс монет\n"
-        "/shop — магазин\n"
-        "/level — рівень і ранг\n"
-        "/chart — графіки прогресу\n"
-        "/motivate — мотивація\n"
-        "/tip — корисна порада\n"
-        "/challenge — челендж дня\n"
-        "/export — експорт даних\n"
-        "/import — імпорт даних\n"
-        "/use — використати предмет",
-        "/start — show commands\n"
-        "/profile — profile\n"
-        "/edit_profile — edit profile\n"
-        "/profile_visibility — profile fields visibility\n"
-        "/workout — log workout\n"
-        "/today — today\n"
-        "/stats — statistics\n"
-        "/weight — weight\n"
-        "/reset — delete all data\n"
-        "/weight_stats — weight statistics\n"
-        "/suggest — suggest workout\n"
-        "/set_goal — set weekly goal\n"
-        "/change_language — change language\n"
-        "/reminders — reminders\n"
-        "/goal — show weekly goal\n"
-        "/daily — daily task\n"
-        "/wallet — coin balance\n"
-        "/shop — shop\n"
-        "/level — level & rank\n"
-        "/chart — progress charts\n"
-        "/motivate — motivation\n"
-        "/tip — health tip\n"
-        "/challenge — challenge of the day\n"
-        "/export — export data\n"
-        "/import — import data\n"
-        "/use — use item"
-    )
-    return style_block(
-        "SportBot",
-        menu_body,
-        icon="🏁"
-    )
+    return t("help", lang)
+
+
+BOT_COMMAND_DESCRIPTIONS = {
+    "uk": {
+        "start": "Почати роботу",
+        "help": "Список команд і коротка довідка",
+        "change_language": "Перемкнути українську й англійську",
+        "profile": "Переглянути профіль",
+        "edit_profile": "Змінити профіль",
+        "profile_visibility": "Налаштувати видимість полів профілю",
+        "set_goal": "Задати тижневу ціль",
+        "goal": "Переглянути тижневу ціль",
+        "daily": "Щоденне завдання",
+        "wallet": "Монети та інвентар",
+        "shop": "Магазин предметів",
+        "reminders": "Налаштувати нагадування",
+        "suggest": "Запропонувати тренування",
+        "motivate": "Мотивація",
+        "tip": "Порада дня",
+        "challenge": "Челендж дня",
+        "weight": "Записати вагу",
+        "weight_stats": "Останні записи ваги",
+        "today": "Активність за сьогодні",
+        "history": "Історія тренувань",
+        "level": "Рівень і XP",
+        "chart": "Графіки прогресу",
+        "workout": "Записати тренування",
+        "stats": "Статистика тренувань",
+        "admin": "Статистика бота (лише адмін)",
+        "backup": "Резервна копія (лише адмін)",
+        "reset": "Видалити дані профілю",
+        "export": "Завантажити копію даних",
+        "import": "Імпортувати дані з JSON",
+        "use": "Використати предмет з інвентарю",
+    },
+    "en": {
+        "start": "Start using the bot",
+        "help": "Command list and quick guide",
+        "change_language": "Switch Ukrainian and English",
+        "profile": "View your profile",
+        "edit_profile": "Edit your profile",
+        "profile_visibility": "Manage visible profile fields",
+        "set_goal": "Set a weekly goal",
+        "goal": "View your weekly goal",
+        "daily": "Daily task",
+        "wallet": "Coins and inventory",
+        "shop": "Item shop",
+        "reminders": "Manage reminders",
+        "suggest": "Suggest a workout",
+        "motivate": "Motivation",
+        "tip": "Tip of the day",
+        "challenge": "Daily challenge",
+        "weight": "Record body weight",
+        "weight_stats": "Recent weight entries",
+        "today": "Today's activity",
+        "history": "Workout history",
+        "level": "Level and XP",
+        "chart": "Progress charts",
+        "workout": "Record a workout",
+        "stats": "Workout statistics",
+        "admin": "Bot statistics (admins only)",
+        "backup": "Database backup (admins only)",
+        "reset": "Delete profile data",
+        "export": "Download a copy of your data",
+        "import": "Import data from JSON",
+        "use": "Use an inventory item",
+    },
+}
+
+
+def build_bot_commands(lang: str) -> list[BotCommand]:
+    descriptions = BOT_COMMAND_DESCRIPTIONS.get(lang, BOT_COMMAND_DESCRIPTIONS["uk"])
+    return [
+        BotCommand(command=command, description=description)
+        for command, description in descriptions.items()
+    ]
 
 
 def generate_workout(goal: str, lang: str) -> str:
@@ -4437,36 +4454,8 @@ async def main():
     scheduler.add_job(lambda: asyncio.create_task(_scheduled_database_backup()), "interval", hours=6,
                       id="database_backup", replace_existing=True, coalesce=True, max_instances=1)
     scheduler.start()
-    await bot.set_my_commands([
-        BotCommand(command="start", description="Запуск"),
-        BotCommand(command="change_language", description="Змінити мову"),
-        BotCommand(command="profile", description="Профіль"),
-        BotCommand(command="edit_profile", description="Змінити профіль"),
-        BotCommand(command="profile_visibility", description="Поля профілю"),
-        BotCommand(command="workout", description="Тренування"),
-        BotCommand(command="today", description="Сьогодні"),
-        BotCommand(command="history", description="Історія тренувань"),
-        BotCommand(command="stats", description="Статистика"),
-        BotCommand(command="weight", description="Вага"),
-        BotCommand(command="reset", description="Видалити все"),
-        BotCommand(command="weight_stats", description="Статистика ваги"),
-        BotCommand(command="suggest", description="Запропонувати тренування"),
-        BotCommand(command="set_goal", description="Встановити мету на тиждень"),
-        BotCommand(command="goal", description="Показати мету на тиждень"),
-        BotCommand(command="daily", description="Щоденне завдання"),
-        BotCommand(command="wallet", description="Баланс монет"),
-        BotCommand(command="shop", description="Магазин"),
-        BotCommand(command="level", description="Рівень і ранг"),
-        BotCommand(command="chart", description="Графіки прогресу"),
-        BotCommand(command="reminders", description="Нагадування"),
-        BotCommand(command="motivate", description="Мотивація"),
-        BotCommand(command="tip", description="Корисна порада"),
-        BotCommand(command="challenge", description="Челендж дня"),
-        BotCommand(command="export", description="Експорт даних"),
-        BotCommand(command="import", description="Імпорт даних"),
-        BotCommand(command="use", description="Використати предмет"),
-        BotCommand(command="backup", description="Резервна копія (адмін)"),
-    ])
+    await bot.set_my_commands(build_bot_commands("uk"))
+    await bot.set_my_commands(build_bot_commands("en"), language_code="en")
     await bot.delete_webhook(drop_pending_updates=True)
     # Оптимизация polling: меньший timeout для быстрого отклика
     await dp.start_polling(bot, timeout=30)

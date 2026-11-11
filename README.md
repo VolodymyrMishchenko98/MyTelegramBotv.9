@@ -89,21 +89,81 @@ MyTelegramBot/
 └── README.md             # Этот файл
 ```
 
-## 🎮 Основные команды бота
+## 🎮 Команди / Commands
 
-| Команда               | Описание                             |
-| --------------------- | ------------------------------------ |
-| `/start`              | Начать работу с ботом                |
-| `/profile`            | Посмотреть профиль пользователя      |
-| `/edit_profile`       | Отредактировать профиль              |
-| `/profile_visibility` | Управлять видимостью полей профиля   |
-| `/workout`            | Добавить тренировку                  |
-| `/shop`               | Открыть магазин товаров              |
-| `/wallet`             | Посмотреть инвентарь и монеты        |
-| `/daily`              | Выполнить ежедневную задачу          |
-| `/reset`              | Очистить все данные профиля          |
-| `/goal`               | Установить еженедельную цель         |
-| `/set_language`       | Выбрать язык (украинский/английский) |
+Мова бота перемикається командою `/change_language`. Українська та англійська — єдині доступні мови інтерфейсу.
+
+Use `/change_language` to switch the bot between Ukrainian and English; these are the only supported interface languages.
+
+### Українська
+
+| Команда | Призначення |
+| --- | --- |
+| `/start` | Почати роботу й відкрити меню |
+| `/help` | Переглянути список команд і довідку |
+| `/change_language` | Перемкнути українську й англійську |
+| `/workout` | Записати тренування |
+| `/today` | Переглянути активність за сьогодні |
+| `/history` | Переглянути історію тренувань |
+| `/stats` | Переглянути статистику тренувань |
+| `/weight` | Записати вагу тіла |
+| `/weight_stats` | Переглянути останні записи ваги |
+| `/level` | Переглянути рівень і XP |
+| `/chart` | Переглянути графіки прогресу |
+| `/profile` | Переглянути профіль |
+| `/edit_profile` | Змінити профіль |
+| `/profile_visibility` | Налаштувати видимість полів профілю |
+| `/set_goal` | Задати тижневу ціль |
+| `/goal` | Переглянути тижневу ціль |
+| `/suggest` | Запропонувати тренування; потрібна мета в профілі |
+| `/daily` | Переглянути щоденне завдання |
+| `/challenge` | Переглянути челендж дня |
+| `/reminders` | Налаштувати нагадування |
+| `/motivate` | Отримати мотиваційне повідомлення |
+| `/tip` | Отримати пораду дня |
+| `/wallet` | Переглянути монети й інвентар |
+| `/shop` | Відкрити магазин предметів |
+| `/use` | Використати предмет з інвентарю |
+| `/export` | Завантажити копію даних |
+| `/import` | Імпортувати JSON; поточні дані буде замінено |
+| `/reset` | Видалити дані профілю після підтвердження |
+| `/admin` | Статистика бота; лише для ID з `ADMIN_IDS` |
+| `/backup` | Створити резервну копію; лише для ID з `ADMIN_IDS` |
+
+### English
+
+| Command | Purpose |
+| --- | --- |
+| `/start` | Start using the bot and open the menu |
+| `/help` | View the command list and quick guide |
+| `/change_language` | Switch between Ukrainian and English |
+| `/workout` | Record a workout |
+| `/today` | View today's activity |
+| `/history` | View workout history |
+| `/stats` | View workout statistics |
+| `/weight` | Record body weight |
+| `/weight_stats` | View recent weight entries |
+| `/level` | View your level and XP |
+| `/chart` | View progress charts |
+| `/profile` | View your profile |
+| `/edit_profile` | Edit your profile |
+| `/profile_visibility` | Manage visible profile fields |
+| `/set_goal` | Set a weekly goal |
+| `/goal` | View your weekly goal |
+| `/suggest` | Suggest a workout; requires a profile goal |
+| `/daily` | View the daily task |
+| `/challenge` | View the daily challenge |
+| `/reminders` | Manage reminders |
+| `/motivate` | Get a motivational message |
+| `/tip` | Get the tip of the day |
+| `/wallet` | View coins and inventory |
+| `/shop` | Open the item shop |
+| `/use` | Use an inventory item |
+| `/export` | Download a copy of your data |
+| `/import` | Import JSON; replaces current data |
+| `/reset` | Delete profile data after confirmation |
+| `/admin` | Bot statistics; only for IDs in `ADMIN_IDS` |
+| `/backup` | Create a database backup; only for IDs in `ADMIN_IDS` |
 
 ## 🗄️ База данных
 
