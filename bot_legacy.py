@@ -47,6 +47,7 @@ from services.workout_input import parse_workout_exercises
 from services.achievements import check_and_award, get_user_stats
 from services.reward_notifications import build_reward_summary
 from services.reward_settlement import settle_action_rewards
+from services.developer_feedback import ensure_feedback_tables
 from handlers.workouts import _workout_note_keyboard
 from handlers.keyboards import add_home_button
 from game_config import (
@@ -68,19 +69,16 @@ if not token:
 if not API_NINJAS_KEY:
     raise RuntimeError("API_NINJAS_KEY is not set. Add it to environment variables.")
 
-DEVELOPER_USERNAME = os.getenv("DEVELOPER_USERNAME", "").strip()
-if DEVELOPER_USERNAME.startswith("@"):
-    DEVELOPER_USERNAME = DEVELOPER_USERNAME[1:]
-if DEVELOPER_USERNAME and not re.fullmatch(r"[A-Za-z0-9_]{5,32}", DEVELOPER_USERNAME):
-    log.warning("DEVELOPER_USERNAME is invalid; developer contact buttons will be hidden")
-    DEVELOPER_USERNAME = ""
-
-
-def developer_contact_url() -> str | None:
-    """Return a Telegram profile URL only when a valid developer username is configured."""
-    if not DEVELOPER_USERNAME:
-        return None
-    return f"https://t.me/{DEVELOPER_USERNAME}"
+_developer_chat_id_raw = os.getenv("DEVELOPER_CHAT_ID", "").strip()
+try:
+    DEVELOPER_CHAT_ID = int(_developer_chat_id_raw) if _developer_chat_id_raw else None
+    if DEVELOPER_CHAT_ID is not None and DEVELOPER_CHAT_ID <= 0:
+        raise ValueError("developer chat ID must be a positive private chat ID")
+except ValueError:
+    log.warning("DEVELOPER_CHAT_ID is invalid; feedback delivery is disabled")
+    DEVELOPER_CHAT_ID = None
+if DEVELOPER_CHAT_ID is None and not _developer_chat_id_raw:
+    log.warning("DEVELOPER_CHAT_ID is not configured; feedback delivery is disabled")
 
 
 # Оптимизация для более быстрой отправки сообщений: timeout 10 секунд вместо 30
@@ -1020,6 +1018,7 @@ def init_db():
                     UNIQUE(user_id, achievement_key)
                 )
                 """)
+    ensure_feedback_tables(cur)
 
     db.commit()
     db.close()
@@ -1036,6 +1035,12 @@ def get_user_state(user_id: int):
 
 def clear_user_state(user_id: int):
     _manual_state_cache.pop(user_id, None)
+
+
+def _is_developer_feedback_state(message: Message) -> bool:
+    user = getattr(message, "from_user", None)
+    state = get_user_state(user.id) if user else None
+    return bool(state and state.startswith("developer_feedback_"))
 
 
 @lru_cache(maxsize=2048)
@@ -2207,7 +2212,7 @@ async def import_prompt(message: Message):
     )
 
 
-@dp.message(F.document)
+@dp.message(F.document, lambda message: not _is_developer_feedback_state(message))
 async def handle_import_file(message: Message):
     """Handle JSON file import."""
     uid = message.from_user.id
@@ -2467,13 +2472,11 @@ def welcome_keyboard(lang: str) -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="📊 Моя статистика" if lang == "uk" else "📊 My stats", callback_data="welcome_stats"),
          InlineKeyboardButton(text="📅 Історія тренувань" if lang == "uk" else "📅 Workout history", callback_data="welcome_history")],
         [InlineKeyboardButton(text="❓ Як користуватися" if lang == "uk" else "❓ How to use", callback_data="welcome_help")],
-    ]
-    developer_url = developer_contact_url()
-    if developer_url:
-        rows.append([InlineKeyboardButton(
+        [InlineKeyboardButton(
             text=t("developer_contact_button", lang),
-            url=developer_url,
-        )])
+            callback_data="devfb:open",
+        )],
+    ]
     rows.append([InlineKeyboardButton(
         text="🇬🇧 English" if lang == "uk" else "🇺🇦 Українська",
         callback_data="welcome_lang_en" if lang == "uk" else "welcome_lang_uk",
@@ -2507,28 +2510,6 @@ async def start(message: Message):
 async def help_command(message: Message):
     lang = get_user_language(message.from_user.id)
     await message.answer(t("help", lang), parse_mode="HTML", reply_markup=help_keyboard(lang))
-
-
-@dp.message(Command("developer"))
-async def developer(message: Message):
-    lang = get_user_language(message.from_user.id)
-    text = t("developer_card", lang)
-    developer_url = developer_contact_url()
-    keyboard = None
-    if developer_url:
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(
-                text=t("developer_contact_button", lang),
-                url=developer_url,
-            ),
-        ]])
-    else:
-        text += "\n\n" + t("developer_contact_unavailable", lang)
-    await message.answer(
-        text,
-        parse_mode="HTML",
-        reply_markup=add_home_button(keyboard, lang),
-    )
 
 
 @dp.callback_query(F.data == "welcome_workout")
@@ -4328,8 +4309,12 @@ async def chart_volume(cb: CallbackQuery):
 
 # ---------- INPUT ----------
 def _is_non_command_message(message: Message) -> bool:
-    """Keep the legacy text-state handler from swallowing registered commands."""
-    return not (message.text and message.text.startswith("/"))
+    """Keep commands and developer feedback input out of the legacy text handler."""
+    if message.text and message.text.startswith("/"):
+        return False
+    if _is_developer_feedback_state(message):
+        return False
+    return True
 
 
 @dp.message(_is_non_command_message)

@@ -240,13 +240,13 @@ heroku create your-app-name
 # 4. Установить Config Vars
 heroku config:set BOT_TOKEN=your_token
 heroku config:set API_NINJAS_KEY=your_key
-heroku config:set DEVELOPER_USERNAME=your_telegram_username
+heroku config:set DEVELOPER_CHAT_ID=123456789
 
 # 5. Запушить на Heroku
 git push heroku main
 ```
 
-`DEVELOPER_USERNAME` is the developer's Telegram username (without `@`). For local runs, add `DEVELOPER_USERNAME=your_telegram_username` to `.env`. If unset or invalid, the contact button is hidden and `/developer` displays a localized notice.
+`DEVELOPER_CHAT_ID` is the developer's private Telegram chat ID. For local runs, add `DEVELOPER_CHAT_ID=123456789` to `.env`; for Heroku, set it as a Config Var. If unset or invalid, feedback submission is disabled and `/developer` displays a localized notice. Keep the bot chat private so only the developer can use ticket actions.
 
 ## 🐛 Решение проблем
 

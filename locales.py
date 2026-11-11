@@ -33,23 +33,200 @@ TEXTS = {
                "Send /start to open the main menu."),
     },
     "developer_card": {
-        "uk": ("👨‍💻 <b>Розробник SportBot</b>\n\n"
-               "Привіт! Я розробник SportBot.\n\n"
-               "Маєш пропозиції щодо покращення, питання або знайшов помилку? "
-               "Буду радий твоєму повідомленню!\n\n"
-               "Пропозиції та відгуки допомагають робити SportBot кращим 💪"),
-        "en": ("👨‍💻 <b>SportBot developer</b>\n\n"
-               "Hi! I'm the developer of SportBot.\n\n"
-               "Have a suggestion, a question, or found a bug? I'd be glad to hear from you!\n\n"
-               "Your feedback helps make SportBot better 💪"),
+        "uk": ("👨‍💻 <b>Зв'язок із розробником SportBot</b>\n\n"
+               "Маєш ідею, питання або знайшов помилку?\n"
+               "Напиши повідомлення прямо тут — я його прочитаю.\n\n"
+               "Ти можеш надіслати повідомлення анонімно або від свого імені."),
+        "en": ("👨‍💻 <b>Contact the SportBot developer</b>\n\n"
+               "Have an idea, a question, or found a bug?\n"
+               "Send a message right here — I'll read it.\n\n"
+               "You can send it anonymously or with your name."),
     },
     "developer_contact_button": {
         "uk": "✉️ Написати розробнику",
-        "en": "✉️ Contact the developer",
+        "en": "✉️ Message the developer",
     },
     "developer_contact_unavailable": {
-        "uk": "Наразі контакт розробника не налаштовано.",
-        "en": "The developer contact is not configured yet.",
+        "uk": "Надсилання повідомлень тимчасово недоступне.",
+        "en": "Sending feedback is temporarily unavailable.",
+    },
+    "developer_feedback_choose_mode": {
+        "uk": "Як надіслати повідомлення?",
+        "en": "How would you like to send your message?",
+    },
+    "developer_feedback_anonymous": {
+        "uk": "🕵️ Анонімно",
+        "en": "🕵️ Anonymous",
+    },
+    "developer_feedback_identified": {
+        "uk": "👤 Від свого імені",
+        "en": "👤 With my name",
+    },
+    "developer_feedback_back": {
+        "uk": "↩️ Назад",
+        "en": "↩️ Back",
+    },
+    "developer_feedback_cancel": {
+        "uk": "✖️ Скасувати",
+        "en": "✖️ Cancel",
+    },
+    "developer_feedback_cancelled": {
+        "uk": "Надсилання звернення скасовано.",
+        "en": "Feedback submission cancelled.",
+    },
+    "developer_feedback_anonymity_note": {
+        "uk": "Анонімно для розробника. Telegram і бот технічно знають твій ID.",
+        "en": "Anonymous to the developer. Telegram and the bot technically know your ID.",
+    },
+    "developer_feedback_choose_category": {
+        "uk": "Обери категорію звернення:",
+        "en": "Choose a feedback category:",
+    },
+    "developer_feedback_category_idea": {
+        "uk": "💡 Пропозиція",
+        "en": "💡 Suggestion",
+    },
+    "developer_feedback_category_bug": {
+        "uk": "🐛 Помилка",
+        "en": "🐛 Bug",
+    },
+    "developer_feedback_category_question": {
+        "uk": "❓ Питання",
+        "en": "❓ Question",
+    },
+    "developer_feedback_category_other": {
+        "uk": "💬 Інше",
+        "en": "💬 Other",
+    },
+    "developer_feedback_write_message": {
+        "uk": "Напиши повідомлення текстом (до 1800 символів).",
+        "en": "Write your message as text (up to 1800 characters).",
+    },
+    "developer_feedback_empty": {
+        "uk": "Повідомлення не може бути порожнім. Напиши текст або скасуй звернення.",
+        "en": "The message can't be empty. Enter text or cancel the request.",
+    },
+    "developer_feedback_too_long": {
+        "uk": "Повідомлення задовге. Максимум — 1800 символів.",
+        "en": "The message is too long. Maximum length is 1800 characters.",
+    },
+    "developer_feedback_text_only": {
+        "uk": "Поки що можна надіслати лише текстове повідомлення.",
+        "en": "Only text messages are supported for now.",
+    },
+    "developer_feedback_rate_limited": {
+        "uk": "Можна надіслати не більше 3 звернень за 10 хвилин. Спробуй пізніше.",
+        "en": "You can send up to 3 requests every 10 minutes. Please try again later.",
+    },
+    "developer_feedback_saved": {
+        "uk": "✅ Звернення #{ticket_id} надіслано. Дякую!",
+        "en": "✅ Feedback #{ticket_id} has been sent. Thank you!",
+    },
+    "developer_feedback_delivery_failed": {
+        "uk": "Звернення #{ticket_id} збережено, але зараз його не вдалося доставити розробнику. Воно не загубилося.",
+        "en": "Feedback #{ticket_id} was saved, but couldn't be delivered to the developer right now. It has not been lost.",
+    },
+    "developer_feedback_save_error": {
+        "uk": "Не вдалося зберегти звернення. Спробуй ще раз пізніше.",
+        "en": "Couldn't save your feedback. Please try again later.",
+    },
+    "developer_feedback_dev_notification": {
+        "uk": ("📩 <b>Нове звернення до розробника</b>\n\n"
+               "ID: #{ticket_id}\nКатегорія: {category}\nРежим: {mode}\n{identity}"
+               "Повідомлення:\n{message}"),
+        "en": ("📩 <b>New developer feedback</b>\n\n"
+               "ID: #{ticket_id}\nCategory: {category}\nMode: {mode}\n{identity}"
+               "Message:\n{message}"),
+    },
+    "developer_feedback_mode_anonymous": {
+        "uk": "🕵️ Анонімно",
+        "en": "🕵️ Anonymous",
+    },
+    "developer_feedback_mode_identified": {
+        "uk": "👤 Від свого імені",
+        "en": "👤 Identified",
+    },
+    "developer_feedback_identity_name": {
+        "uk": "Ім'я: {name}\n",
+        "en": "Name: {name}\n",
+    },
+    "developer_feedback_identity_username": {
+        "uk": "Username: @{username}\n",
+        "en": "Username: @{username}\n",
+    },
+    "developer_feedback_reply": {
+        "uk": "↩️ Відповісти",
+        "en": "↩️ Reply",
+    },
+    "developer_feedback_close": {
+        "uk": "✅ Закрити звернення",
+        "en": "✅ Close request",
+    },
+    "developer_feedback_reopen": {
+        "uk": "🔓 Відкрити знову",
+        "en": "🔓 Reopen",
+    },
+    "developer_feedback_user_reply": {
+        "uk": "✉️ Відповісти SportBot",
+        "en": "✉️ Reply to SportBot",
+    },
+    "developer_feedback_reply_prompt": {
+        "uk": "Напиши відповідь користувачу. Максимум — 1800 символів.",
+        "en": "Write your reply to the user. Maximum length is 1800 characters.",
+    },
+    "developer_feedback_reply_saved": {
+        "uk": "Відповідь на звернення #{ticket_id} надіслано.",
+        "en": "Reply to feedback #{ticket_id} has been delivered.",
+    },
+    "developer_feedback_reply_history_failed": {
+        "uk": "Відповідь на звернення #{ticket_id} доставлена, але не вдалося оновити її історію.",
+        "en": "Reply to feedback #{ticket_id} was delivered, but its history could not be updated.",
+    },
+    "developer_feedback_reply_failed": {
+        "uk": "Не вдалося доставити відповідь на звернення #{ticket_id}. Звернення залишилося відкритим.",
+        "en": "Couldn't deliver the reply to feedback #{ticket_id}. The request remains open.",
+    },
+    "developer_feedback_reply_error": {
+        "uk": "Не вдалося зберегти відповідь. Звернення залишилося відкритим.",
+        "en": "Couldn't save the reply. The request remains open.",
+    },
+    "developer_feedback_reply_body": {
+        "uk": "💬 <b>Відповідь SportBot:</b>\n\n{message}",
+        "en": "💬 <b>Reply from SportBot:</b>\n\n{message}",
+    },
+    "developer_feedback_user_followup": {
+        "uk": "📩 <b>Нове повідомлення у зверненні #{ticket_id}</b>\n\n"
+               "Категорія: {category}\nРежим: {mode}\n{identity}Повідомлення:\n{message}",
+        "en": "📩 <b>New message in feedback #{ticket_id}</b>\n\n"
+               "Category: {category}\nMode: {mode}\n{identity}Message:\n{message}",
+    },
+    "developer_feedback_followup_sent": {
+        "uk": "✅ Повідомлення додано до звернення #{ticket_id}.",
+        "en": "✅ Your message was added to feedback #{ticket_id}.",
+    },
+    "developer_feedback_followup_delivery_failed": {
+        "uk": "Повідомлення додано до звернення #{ticket_id}, але не вдалося сповістити розробника. Воно не загубилося.",
+        "en": "Your message was added to feedback #{ticket_id}, but the developer couldn't be notified. It has not been lost.",
+    },
+    "developer_feedback_closed": {
+        "uk": "Звернення закрито.",
+        "en": "Feedback closed.",
+    },
+    "developer_feedback_reopened": {
+        "uk": "Звернення знову відкрите.",
+        "en": "Feedback reopened.",
+    },
+    "developer_feedback_closed_user": {
+        "uk": "Це звернення закрите. Створи нове через /developer, якщо маєш додаткові питання.",
+        "en": "This request is closed. Start a new one with /developer if you have more questions.",
+    },
+    "developer_feedback_not_found": {
+        "uk": "Звернення не знайдено або воно вже недоступне.",
+        "en": "Feedback wasn't found or is no longer available.",
+    },
+    "developer_feedback_unauthorized": {
+        "uk": "Ця дія доступна лише розробнику.",
+        "en": "This action is available to the developer only.",
     },
 }
 
