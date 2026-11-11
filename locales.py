@@ -12,6 +12,158 @@ TEXTS = {
                 "for example: Running 30 min, Push-ups 4x20.\n\n"
                 "After saving, you'll see a confirmation and only the rewards actually granted."),
     },
+    "settings_open_button": {
+        "uk": "⚙️ Налаштування",
+        "en": "⚙️ Settings",
+    },
+    "settings_title": {
+        "uk": "Налаштування SportBot",
+        "en": "SportBot settings",
+    },
+    "settings_description": {
+        "uk": "Керуй профілем, мовою, нагадуваннями та своїми даними.",
+        "en": "Manage your profile, language, reminders, and personal data.",
+    },
+    "settings_profile": {
+        "uk": "👤 Профіль",
+        "en": "👤 Profile",
+    },
+    "settings_language": {
+        "uk": "🌐 Мова",
+        "en": "🌐 Language",
+    },
+    "settings_reminders": {
+        "uk": "🔔 Нагадування",
+        "en": "🔔 Reminders",
+    },
+    "settings_data": {
+        "uk": "🗂 Керування даними",
+        "en": "🗂 Manage data",
+    },
+    "settings_back": {
+        "uk": "⬅️ До налаштувань",
+        "en": "⬅️ Back to settings",
+    },
+    "settings_profile_edit": {
+        "uk": "✏️ Редагувати профіль і мету",
+        "en": "✏️ Edit profile and goal",
+    },
+    "settings_profile_visibility": {
+        "uk": "👁 Видимість полів",
+        "en": "👁 Field visibility",
+    },
+    "settings_profile_back": {
+        "uk": "⬅️ До профілю",
+        "en": "⬅️ Back to profile",
+    },
+    "settings_language_title": {
+        "uk": "Мова інтерфейсу",
+        "en": "Interface language",
+    },
+    "settings_language_current": {
+        "uk": "Поточна мова: {language}",
+        "en": "Current language: {language}",
+    },
+    "settings_language_ukrainian": {
+        "uk": "Українська",
+        "en": "Українська",
+    },
+    "settings_language_english": {
+        "uk": "English",
+        "en": "English",
+    },
+    "settings_language_saved": {
+        "uk": "Мову збережено ✅",
+        "en": "Language saved ✅",
+    },
+    "settings_reminders_enabled": {
+        "uk": "Нагадування увімкнені.",
+        "en": "Reminders are enabled.",
+    },
+    "settings_reminders_disabled": {
+        "uk": "Нагадування вимкнені.",
+        "en": "Reminders are disabled.",
+    },
+    "settings_reminders_enabled_title": {
+        "uk": "🔔 Стан нагадувань",
+        "en": "🔔 Reminder status",
+    },
+    "settings_reminders_enable": {
+        "uk": "✅ Увімкнути нагадування",
+        "en": "✅ Enable reminders",
+    },
+    "settings_reminders_disable": {
+        "uk": "🔕 Вимкнути нагадування",
+        "en": "🔕 Disable reminders",
+    },
+    "settings_data_title": {
+        "uk": "Керування даними",
+        "en": "Manage your data",
+    },
+    "settings_data_description": {
+        "uk": "Експортуй або імпортуй свої дані чи скинь профіль. Це не резервна копія бази даних.",
+        "en": "Export or import your data, or reset your profile. This is not a database backup.",
+    },
+    "settings_data_export": {
+        "uk": "📤 Експортувати дані",
+        "en": "📤 Export data",
+    },
+    "settings_data_import": {
+        "uk": "📥 Імпортувати дані",
+        "en": "📥 Import data",
+    },
+    "settings_data_reset": {
+        "uk": "🗑 Скинути профіль",
+        "en": "🗑 Reset profile",
+    },
+    "settings_export_caption": {
+        "uk": "✅ Ваші дані для резервної копії. Збережіть цей файл.\n\nДля відновлення використайте /import",
+        "en": "✅ Your backup data. Save this file.\n\nUse /import to restore",
+    },
+    "settings_import_prompt": {
+        "uk": "📥 Надішліть файл JSON для імпорту даних\n\n⚠️ Увага: це перезапише ваші поточні дані!",
+        "en": "📥 Send a JSON file to import data\n\n⚠️ Warning: this will overwrite your current data!",
+    },
+    "settings_import_confirmation": {
+        "uk": "⚠️ Це перезапише всі ваші дані. Продовжити?",
+        "en": "⚠️ This will overwrite all your data. Continue?",
+    },
+    "settings_import_missing": {
+        "uk": "❌ Дані не знайдено",
+        "en": "❌ Data not found",
+    },
+    "settings_import_invalid": {
+        "uk": "❌ Невірний формат даних",
+        "en": "❌ Invalid data format",
+    },
+    "settings_import_success": {
+        "uk": "✅ Дані успішно імпортовано!",
+        "en": "✅ Data imported successfully!",
+    },
+    "settings_import_failure": {
+        "uk": "❌ Помилка імпорту: {message}",
+        "en": "❌ Import error: {message}",
+    },
+    "settings_import_cancelled": {
+        "uk": "❌ Імпорт скасовано",
+        "en": "❌ Import cancelled",
+    },
+    "settings_reset_prompt": {
+        "uk": "Видалити профіль і всі дані?",
+        "en": "Delete profile and all data?",
+    },
+    "settings_reset_success": {
+        "uk": "✅ Профіль повністю видалено. Дані очищені.",
+        "en": "✅ Profile completely deleted. All data cleared.",
+    },
+    "settings_reset_failure": {
+        "uk": "❌ Помилка при видаленні. Спробуйте пізніше.",
+        "en": "❌ Error during deletion. Try again later.",
+    },
+    "settings_reset_cancelled": {
+        "uk": "Скасування.",
+        "en": "Canceled.",
+    },
     "help": {
         "uk": ("<b>Команди SportBot</b>\n/help — цей список команд\n\n"
                "<b>Тренування</b>\n/workout — записати тренування\n/program — створити або переглянути програму\n/today — активність за сьогодні\n/history — історія тренувань\n\n"

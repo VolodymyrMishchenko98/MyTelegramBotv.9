@@ -6,6 +6,8 @@ from __future__ import annotations
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
+from locales import t
+
 MOTIVATION_QUOTES = [
     ("Маленькі кроки щодня = великі результати через місяць.",
      "Small steps every day = big results in a month."),
@@ -69,6 +71,88 @@ def add_home_button(
             callback_data="welcome_menu",
         )])
     return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def add_navigation_button(
+    markup: InlineKeyboardMarkup | None,
+    lang: str,
+    label_key: str,
+    callback_data: str,
+) -> InlineKeyboardMarkup:
+    rows = [list(row) for row in markup.inline_keyboard] if markup else []
+    if not any(
+        button.callback_data == callback_data
+        for row in rows
+        for button in row
+    ):
+        navigation_row = [InlineKeyboardButton(
+            text=t(label_key, lang),
+            callback_data=callback_data,
+        )]
+        home_index = next(
+            (
+                index
+                for index, row in enumerate(rows)
+                if any(button.callback_data == "welcome_menu" for button in row)
+            ),
+            len(rows),
+        )
+        rows.insert(home_index, navigation_row)
+    return add_home_button(InlineKeyboardMarkup(inline_keyboard=rows), lang)
+
+
+def settings_keyboard(lang: str) -> InlineKeyboardMarkup:
+    return add_home_button(InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=t("settings_profile", lang), callback_data="settings_profile")],
+        [InlineKeyboardButton(text=t("settings_language", lang), callback_data="settings_language")],
+        [InlineKeyboardButton(text=t("settings_reminders", lang), callback_data="settings_reminders")],
+        [InlineKeyboardButton(text=t("settings_data", lang), callback_data="settings_data")],
+    ]), lang)
+
+
+def profile_actions_keyboard(lang: str) -> InlineKeyboardMarkup:
+    return add_home_button(InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=t("settings_profile_edit", lang), callback_data="profile_edit_open")],
+        [InlineKeyboardButton(text=t("settings_profile_visibility", lang), callback_data="profile_visibility_open")],
+        [InlineKeyboardButton(text=t("settings_back", lang), callback_data="settings_home")],
+    ]), lang)
+
+
+def language_settings_keyboard(lang: str) -> InlineKeyboardMarkup:
+    return add_navigation_button(InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text=f"{'✅ ' if lang == 'uk' else ''}{t('settings_language_ukrainian', lang)}",
+            callback_data="settings_language_uk",
+        )],
+        [InlineKeyboardButton(
+            text=f"{'✅ ' if lang == 'en' else ''}{t('settings_language_english', lang)}",
+            callback_data="settings_language_en",
+        )],
+    ]), lang, "settings_back", "settings_home")
+
+
+def reminders_settings_keyboard(lang: str, enabled: bool) -> InlineKeyboardMarkup:
+    label_key = "settings_reminders_disable" if enabled else "settings_reminders_enable"
+    callback_data = "settings_reminders_disable" if enabled else "settings_reminders_enable"
+    return add_navigation_button(InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text=t(label_key, lang), callback_data=callback_data)
+    ]]), lang, "settings_back", "settings_home")
+
+
+def data_management_keyboard(lang: str) -> InlineKeyboardMarkup:
+    return add_navigation_button(InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=t("settings_data_export", lang), callback_data="settings_data_export")],
+        [InlineKeyboardButton(text=t("settings_data_import", lang), callback_data="settings_data_import")],
+        [InlineKeyboardButton(text=t("settings_data_reset", lang), callback_data="settings_data_reset")],
+    ]), lang, "settings_back", "settings_home")
+
+
+def settings_return_keyboard(lang: str) -> InlineKeyboardMarkup:
+    return add_navigation_button(None, lang, "settings_back", "settings_home")
+
+
+def profile_return_keyboard(lang: str) -> InlineKeyboardMarkup:
+    return add_navigation_button(None, lang, "settings_profile_back", "profile_screen")
 
 
 # ── inline keyboards ───────────────────────────────────────────────────────

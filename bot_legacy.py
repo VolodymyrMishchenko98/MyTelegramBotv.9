@@ -50,7 +50,17 @@ from services.reward_settlement import settle_action_rewards
 from services.developer_feedback import ensure_feedback_tables
 from services.training_programs import ensure_program_tables
 from handlers.workouts import _workout_note_keyboard
-from handlers.keyboards import add_home_button
+from handlers.keyboards import (
+    add_home_button,
+    add_navigation_button,
+    data_management_keyboard,
+    language_settings_keyboard,
+    profile_actions_keyboard,
+    profile_return_keyboard,
+    reminders_settings_keyboard,
+    settings_keyboard,
+    settings_return_keyboard,
+)
 from game_config import (
     WORKOUT_XP_REWARD, DAILY_TASK_XP_REWARD, SUGGESTED_WORKOUT_XP, CHALLENGE_XP_REWARD,
     WORKOUT_COIN_REWARD, SUGGESTED_WORKOUT_REWARD, CHALLENGE_COIN_REWARD,
@@ -205,21 +215,21 @@ def acquire_single_instance_lock():
 
 # ---------- UI ----------
 def reminders_on_keyboard(lang: str) -> InlineKeyboardMarkup:
-    return add_home_button(InlineKeyboardMarkup(inline_keyboard=[[
+    return add_navigation_button(add_home_button(InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(
             text=t_pair(lang, "❌ Вимкнути", "❌ Disable"),
             callback_data="reminders_off"
         )
-    ]]), lang)
+    ]]), lang), lang, "settings_back", "settings_home")
 
 
 def reminders_off_keyboard(lang: str) -> InlineKeyboardMarkup:
-    return add_home_button(InlineKeyboardMarkup(inline_keyboard=[[
+    return add_navigation_button(add_home_button(InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(
             text=t_pair(lang, "✅ Увімкнути", "✅ Enable"),
             callback_data="reminders_on"
         )
-    ]]), lang)
+    ]]), lang), lang, "settings_back", "settings_home")
 
 
 def reset_keyboard(lang: str) -> InlineKeyboardMarkup:
@@ -1714,11 +1724,26 @@ def calculate_streak(dates):
 # ---------- RESET ----------
 @dp.message(Command("reset"))
 async def reset_profile(message: Message):
-    lang = get_user_language(message.from_user.id)
-    await message.answer(
-        t_pair(lang, "Видалити профіль і всі дані?", "Delete profile and all data?"),
-        reply_markup=add_home_button(reset_keyboard(lang), lang)
+    await show_reset_prompt(
+        message,
+        get_user_language(message.from_user.id),
     )
+
+
+async def show_reset_prompt(
+    message: Message,
+    lang: str,
+    *,
+    edit: bool = False,
+) -> None:
+    display = message.edit_text if edit else message.answer
+    keyboard = add_navigation_button(
+        add_home_button(reset_keyboard(lang), lang),
+        lang,
+        "settings_back",
+        "settings_home",
+    )
+    await display(t("settings_reset_prompt", lang), reply_markup=keyboard)
 
 
 @dp.callback_query(lambda c: c.data == "reset_yes")
@@ -1731,15 +1756,13 @@ async def reset_yes(callback: CallbackQuery):
     
     if success:
         await callback.message.edit_text(
-            t_pair(lang, "✅ Профіль повністю видалено. Дані очищені.",
-                   "✅ Profile completely deleted. All data cleared."),
-            reply_markup=add_home_button(None, lang),
+            t("settings_reset_success", lang),
+            reply_markup=settings_return_keyboard(lang),
         )
     else:
         await callback.message.edit_text(
-            t_pair(lang, "❌ Помилка при видаленні. Спробуйте пізніше.",
-                   "❌ Error during deletion. Try again later."),
-            reply_markup=add_home_button(None, lang),
+            t("settings_reset_failure", lang),
+            reply_markup=settings_return_keyboard(lang),
         )
 
 
@@ -1747,8 +1770,8 @@ async def reset_yes(callback: CallbackQuery):
 async def reset_no(callback: CallbackQuery):
     lang = get_user_language(callback.from_user.id)
     await callback.message.edit_text(
-        t_pair(lang, "Скасування.", "Canceled."),
-        reply_markup=add_home_button(None, lang),
+        t("settings_reset_cancelled", lang),
+        reply_markup=settings_return_keyboard(lang),
     )
 
 
@@ -2194,8 +2217,11 @@ def import_user_data(user_id: int, data: dict) -> tuple[bool, str]:
 
 @dp.message(Command("export"))
 async def export_data(message: Message):
-    """Export user data as JSON file."""
-    uid = message.from_user.id
+    await send_user_export(message, message.from_user.id)
+
+
+async def send_user_export(message: Message, uid: int) -> None:
+    """Export one user's data through the command or settings screen."""
     lang = get_user_language(uid)
     
     data = get_user_export_data(uid)
@@ -2208,25 +2234,40 @@ async def export_data(message: Message):
     
     await message.answer_document(
         document=document,
-        caption=t_pair(lang, 
-            "✅ Ваші дані для резервної копії. Збережіть цей файл.\n\nДля відновлення використайте /import", 
-            "✅ Your backup data. Save this file.\n\nUse /import to restore"
-        ),
-        reply_markup=add_home_button(None, lang),
+        caption=t("settings_export_caption", lang),
+        reply_markup=settings_return_keyboard(lang),
     )
+
+
+@dp.callback_query(F.data == "settings_data_export")
+async def settings_data_export(callback: CallbackQuery) -> None:
+    await callback.answer()
+    await send_user_export(callback.message, callback.from_user.id)
 
 
 @dp.message(Command("import"))
 async def import_prompt(message: Message):
-    """Prompt user to send JSON file for import."""
-    lang = get_user_language(message.from_user.id)
-    await message.answer(
-        t_pair(lang,
-            "📥 Надішліть файл JSON для імпорту даних\n\n⚠️ Увага: це перезапише ваші поточні дані!",
-            "📥 Send a JSON file to import data\n\n⚠️ Warning: this will overwrite your current data!"
-        ),
-        reply_markup=add_home_button(None, lang),
+    await show_import_prompt(message, message.from_user.id)
+
+
+async def show_import_prompt(
+    message: Message,
+    user_id: int,
+    *,
+    edit: bool = False,
+) -> None:
+    lang = get_user_language(user_id)
+    display = message.edit_text if edit else message.answer
+    await display(
+        t("settings_import_prompt", lang),
+        reply_markup=settings_return_keyboard(lang),
     )
+
+
+@dp.callback_query(F.data == "settings_data_import")
+async def settings_data_import(callback: CallbackQuery) -> None:
+    await callback.answer()
+    await show_import_prompt(callback.message, callback.from_user.id, edit=True)
 
 
 @dp.message(
@@ -2266,10 +2307,7 @@ async def handle_import_file(message: Message):
     
     # Confirm before import
     await message.answer(
-        t_pair(lang,
-            "⚠️ Це перезапише всі ваші дані. Продовжити?", 
-            "⚠️ This will overwrite all your data. Continue?"
-        ),
+        t("settings_import_confirmation", lang),
         reply_markup=add_home_button(InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text=t_pair(lang, "✅ Так", "✅ Yes"), callback_data="import_confirm")],
             [InlineKeyboardButton(text=t_pair(lang, "❌ Ні", "❌ No"), callback_data="import_cancel")]
@@ -2288,8 +2326,8 @@ async def import_confirm(callback: CallbackQuery):
     state = get_user_state(uid)
     if not state or not state.startswith("import_data:"):
         await callback.message.edit_text(
-            t_pair(lang, "❌ Дані не знайдено", "❌ Data not found"),
-            reply_markup=add_home_button(None, lang),
+            t("settings_import_missing", lang),
+            reply_markup=settings_return_keyboard(lang),
         )
         return
     
@@ -2297,8 +2335,8 @@ async def import_confirm(callback: CallbackQuery):
         data = json.loads(state.replace("import_data:", ""))
     except json.JSONDecodeError:
         await callback.message.edit_text(
-            t_pair(lang, "❌ Невірний формат даних", "❌ Invalid data format"),
-            reply_markup=add_home_button(None, lang),
+            t("settings_import_invalid", lang),
+            reply_markup=settings_return_keyboard(lang),
         )
         clear_user_state(uid)
         return
@@ -2306,13 +2344,13 @@ async def import_confirm(callback: CallbackQuery):
     success, msg = import_user_data(uid, data)
     if success:
         await callback.message.edit_text(
-            t_pair(lang, "✅ Дані успішно імпортовано!", "✅ Data imported successfully!"),
-            reply_markup=add_home_button(None, lang),
+            t("settings_import_success", lang),
+            reply_markup=settings_return_keyboard(lang),
         )
     else:
         await callback.message.edit_text(
-            t_pair(lang, f"❌ Помилка імпорту: {msg}", f"❌ Import error: {msg}"),
-            reply_markup=add_home_button(None, lang),
+            t("settings_import_failure", lang).format(message=msg),
+            reply_markup=settings_return_keyboard(lang),
         )
     clear_user_state(uid)
 
@@ -2323,8 +2361,8 @@ async def import_cancel(callback: CallbackQuery):
     lang = get_user_language(uid)
     clear_user_state(uid)
     await callback.message.edit_text(
-        t_pair(lang, "❌ Імпорт скасовано", "❌ Import cancelled"),
-        reply_markup=add_home_button(None, lang),
+        t("settings_import_cancelled", lang),
+        reply_markup=settings_return_keyboard(lang),
     )
 
 
@@ -2498,6 +2536,10 @@ def welcome_keyboard(lang: str) -> InlineKeyboardMarkup:
             text=t("program_create", lang),
             callback_data="program:open",
         )],
+        [InlineKeyboardButton(
+            text=t("settings_open_button", lang),
+            callback_data="settings_home",
+        )],
         [InlineKeyboardButton(text="❓ Як користуватися" if lang == "uk" else "❓ How to use", callback_data="welcome_help")],
         [InlineKeyboardButton(
             text=t("developer_contact_button", lang),
@@ -2509,6 +2551,101 @@ def welcome_keyboard(lang: str) -> InlineKeyboardMarkup:
         callback_data="welcome_lang_en" if lang == "uk" else "welcome_lang_uk",
     )])
     return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+async def show_settings(message: Message, user_id: int, *, edit: bool = False) -> None:
+    lang = get_user_language(user_id)
+    display = message.edit_text if edit else message.answer
+    await display(
+        style_block(t("settings_title", lang), t("settings_description", lang), icon="⚙️"),
+        parse_mode="HTML",
+        reply_markup=settings_keyboard(lang),
+    )
+
+
+@dp.callback_query(F.data == "settings_home")
+async def settings_home(callback: CallbackQuery) -> None:
+    clear_user_state(callback.from_user.id)
+    await callback.answer()
+    await show_settings(callback.message, callback.from_user.id, edit=True)
+
+
+@dp.callback_query(F.data == "settings_profile")
+async def settings_profile(callback: CallbackQuery) -> None:
+    await callback.answer()
+    await show_profile(callback.message, callback.from_user.id, edit=True)
+
+
+@dp.callback_query(F.data == "settings_language")
+async def settings_language(callback: CallbackQuery) -> None:
+    await callback.answer()
+    await show_language_settings(callback.message, callback.from_user.id, edit=True)
+
+
+async def show_language_settings(
+    message: Message,
+    user_id: int,
+    *,
+    edit: bool = False,
+) -> None:
+    lang = get_user_language(user_id)
+    language_name = t(
+        "settings_language_ukrainian" if lang == "uk" else "settings_language_english",
+        lang,
+    )
+    body = t("settings_language_current", lang).format(language=language_name)
+    display = message.edit_text if edit else message.answer
+    await display(
+        style_block(t("settings_language_title", lang), body, icon="🌐"),
+        parse_mode="HTML",
+        reply_markup=language_settings_keyboard(lang),
+    )
+
+
+async def select_settings_language(
+    callback: CallbackQuery,
+    lang: str,
+) -> None:
+    set_user_language(callback.from_user.id, lang)
+    await callback.answer(t("settings_language_saved", lang))
+    await show_language_settings(callback.message, callback.from_user.id, edit=True)
+
+
+@dp.callback_query(F.data == "settings_language_uk")
+async def settings_language_uk(callback: CallbackQuery) -> None:
+    await select_settings_language(callback, "uk")
+
+
+@dp.callback_query(F.data == "settings_language_en")
+async def settings_language_en(callback: CallbackQuery) -> None:
+    await select_settings_language(callback, "en")
+
+
+@dp.callback_query(F.data == "settings_reminders")
+async def settings_reminders(callback: CallbackQuery) -> None:
+    await callback.answer()
+    await show_settings_reminders(callback.message, callback.from_user.id, edit=True)
+
+
+@dp.callback_query(F.data == "settings_data")
+async def settings_data(callback: CallbackQuery) -> None:
+    await callback.answer()
+    lang = get_user_language(callback.from_user.id)
+    await callback.message.edit_text(
+        style_block(t("settings_data_title", lang), t("settings_data_description", lang), icon="🗂"),
+        parse_mode="HTML",
+        reply_markup=data_management_keyboard(lang),
+    )
+
+
+@dp.callback_query(F.data == "settings_data_reset")
+async def settings_data_reset(callback: CallbackQuery) -> None:
+    await callback.answer()
+    await show_reset_prompt(
+        callback.message,
+        get_user_language(callback.from_user.id),
+        edit=True,
+    )
 
 
 def help_keyboard(lang: str) -> InlineKeyboardMarkup:
@@ -2629,7 +2766,12 @@ async def change_language_command(message: Message):
     await message.answer(
         t_pair(lang, "Мову змінено на Українську ✅", "Language changed to English ✅"),
         parse_mode="HTML",
-        reply_markup=add_home_button(None, lang),
+        reply_markup=add_navigation_button(
+            add_home_button(None, lang),
+            lang,
+            "settings_open_button",
+            "settings_home",
+        ),
     )
 
 
@@ -2650,15 +2792,20 @@ async def profile(message: Message):
     uid = message.from_user.id
     if is_duplicate_command(uid, message.message_id):
         return
+    await show_profile(message, uid)
+
+
+async def show_profile(message: Message, uid: int, *, edit: bool = False) -> None:
     lang = get_user_language(uid)
     profile_row = _coerce_profile_dict(get_user_data_safe(uid))
 
     if not profile_is_filled(profile_row):
         ensure_user(uid)
         set_user_state(uid, "profile")
-        await message.answer(
+        display = message.edit_text if edit else message.answer
+        await display(
             profile_input_prompt(lang),
-            reply_markup=add_home_button(None, lang),
+            reply_markup=profile_actions_keyboard(lang),
         )
         return
 
@@ -2707,15 +2854,22 @@ async def profile(message: Message):
             )
         )
 
-    await message.answer(
+    display = message.edit_text if edit else message.answer
+    await display(
         style_block(
             t_pair(lang, "Профіль", "Profile"),
             "\n".join(profile_lines),
             icon="👤"
         ),
         parse_mode="HTML",
-        reply_markup=add_home_button(None, lang),
+        reply_markup=profile_actions_keyboard(lang),
     )
+
+
+@dp.callback_query(F.data == "profile_screen")
+async def profile_screen(callback: CallbackQuery) -> None:
+    await callback.answer()
+    await show_profile(callback.message, callback.from_user.id, edit=True)
 
 
 @dp.message(Command("edit_profile"))
@@ -2723,28 +2877,74 @@ async def edit_profile(message: Message):
     uid = message.from_user.id
     if is_duplicate_command(uid, message.message_id):
         return
+    await prompt_profile_edit(message, uid)
+
+
+async def prompt_profile_edit(
+    message: Message,
+    uid: int,
+    *,
+    edit: bool = False,
+    return_to_profile: bool = False,
+) -> None:
     lang = get_user_language(uid)
     set_user_state(uid, "profile")
-    await message.answer(
+    display = message.edit_text if edit else message.answer
+    await display(
         profile_input_prompt(lang),
-        reply_markup=add_home_button(None, lang),
+        reply_markup=(
+            profile_return_keyboard(lang)
+            if return_to_profile
+            else settings_return_keyboard(lang)
+        ),
+    )
+
+
+@dp.callback_query(F.data == "profile_edit_open")
+async def profile_edit_open(callback: CallbackQuery) -> None:
+    await callback.answer()
+    await prompt_profile_edit(
+        callback.message,
+        callback.from_user.id,
+        edit=True,
+        return_to_profile=True,
     )
 
 
 @dp.message(Command("profile_visibility"))
 async def profile_visibility(message: Message):
-    uid = message.from_user.id
+    await show_profile_visibility(message, message.from_user.id)
+
+
+async def show_profile_visibility(
+    message: Message,
+    uid: int,
+    *,
+    edit: bool = False,
+) -> None:
     lang = get_user_language(uid)
     ensure_user_exists(uid)
     visibility = get_profile_visibility(uid)
-    await message.answer(
+    display = message.edit_text if edit else message.answer
+    await display(
         t_pair(
             lang,
             "Обери, які поля показувати в /profile:",
             "Choose which fields to show in /profile:"
         ),
-        reply_markup=profile_visibility_keyboard(lang, visibility)
+        reply_markup=add_navigation_button(
+            profile_visibility_keyboard(lang, visibility),
+            lang,
+            "settings_profile_back",
+            "profile_screen",
+        ),
     )
+
+
+@dp.callback_query(F.data == "profile_visibility_open")
+async def profile_visibility_open(callback: CallbackQuery) -> None:
+    await callback.answer()
+    await show_profile_visibility(callback.message, callback.from_user.id, edit=True)
 
 
 @dp.callback_query(F.data.startswith("profile_toggle_"))
@@ -2764,7 +2964,12 @@ async def profile_toggle(callback: CallbackQuery):
         
         visibility = get_profile_visibility(uid)
         await callback.message.edit_reply_markup(
-            reply_markup=profile_visibility_keyboard(lang, visibility)
+            reply_markup=add_navigation_button(
+                profile_visibility_keyboard(lang, visibility),
+                lang,
+                "settings_profile_back",
+                "profile_screen",
+            )
         )
     except ValueError as e:
         await callback.message.answer(t_pair(lang, f"❌ Помилка: {str(e)}", f"❌ Error: {str(e)}"))
@@ -3263,6 +3468,21 @@ async def shop_buy(callback: CallbackQuery):
 async def reminders(message: Message):
     uid = message.from_user.id
     lang = get_user_language(uid)
+    status = get_reminders_enabled(uid)
+
+    if status:
+        await message.answer(
+            t_pair(lang, "🔔 Нагадування вже увімкнені.\n\nХочеш вимкнути?", "🔔 Reminders are already enabled.\n\nDo you want to disable them?"),
+            reply_markup=reminders_off_keyboard(lang)
+        )
+    else:
+        await message.answer(
+            t_pair(lang, "🔕 Нагадування вже вимкнені.\n\nХочеш увімкнути?", "🔕 Reminders are already disabled.\n\nDo you want to enable them?"),
+            reply_markup=reminders_on_keyboard(lang)
+        )
+
+
+def get_reminders_enabled(uid: int) -> bool:
     db = get_db()
     cur = db.cursor()
 
@@ -3282,19 +3502,76 @@ async def reminders(message: Message):
         status = True
     else:
         status = bool(row[0])
-    
     db.close()
+    return status
 
-    if status:
-        await message.answer(
-            t_pair(lang, "🔔 Нагадування вже увімкнені.\n\nХочеш вимкнути?", "🔔 Reminders are already enabled.\n\nDo you want to disable them?"),
-            reply_markup=reminders_off_keyboard(lang)
+
+async def show_settings_reminders(
+    message: Message,
+    uid: int,
+    *,
+    edit: bool = False,
+) -> None:
+    lang = get_user_language(uid)
+    enabled = get_reminders_enabled(uid)
+    state_key = "settings_reminders_enabled" if enabled else "settings_reminders_disabled"
+    display = message.edit_text if edit else message.answer
+    await display(
+        style_block(
+            t("settings_reminders_enabled_title", lang),
+            t(state_key, lang),
+            icon="🔔",
+        ),
+        parse_mode="HTML",
+        reply_markup=reminders_settings_keyboard(lang, enabled),
+    )
+
+
+def set_reminders_enabled(uid: int, enabled: bool) -> None:
+    db = get_db()
+    cur = db.cursor()
+    if enabled:
+        cur.execute(
+            """
+            INSERT INTO users (user_id, reminders_enabled)
+            VALUES (?, 1)
+            ON CONFLICT(user_id) DO NOTHING
+            """,
+            (uid,)
+        )
+        cur.execute(
+            "UPDATE users SET reminders_enabled=1 WHERE user_id=?",
+            (uid,)
         )
     else:
-        await message.answer(
-            t_pair(lang, "🔕 Нагадування вже вимкнені.\n\nХочеш увімкнути?", "🔕 Reminders are already disabled.\n\nDo you want to enable them?"),
-            reply_markup=reminders_on_keyboard(lang)
+        cur.execute(
+            """
+            INSERT INTO users (user_id, reminders_enabled)
+            VALUES (?, 0)
+            ON CONFLICT(user_id) DO NOTHING
+            """,
+            (uid,)
         )
+        cur.execute(
+            "UPDATE users SET reminders_enabled=0 WHERE user_id=?",
+            (uid,)
+        )
+    db.commit()
+    db.close()
+
+
+@dp.callback_query(F.data == "settings_reminders_enable")
+async def settings_reminders_enable(callback: CallbackQuery) -> None:
+    await callback.answer()
+    set_reminders_enabled(callback.from_user.id, True)
+    await show_settings_reminders(callback.message, callback.from_user.id, edit=True)
+
+
+@dp.callback_query(F.data == "settings_reminders_disable")
+async def settings_reminders_disable(callback: CallbackQuery) -> None:
+    await callback.answer()
+    set_reminders_enabled(callback.from_user.id, False)
+    await show_settings_reminders(callback.message, callback.from_user.id, edit=True)
 
 
 @dp.callback_query(lambda c: c.data == "reminders_on")
@@ -3302,23 +3579,7 @@ async def reminders_on(callback: CallbackQuery):
     uid = callback.from_user.id
     lang = get_user_language(uid)
     await callback.answer()
-    db = get_db()
-    cur = db.cursor()
-
-    cur.execute(
-        """
-        INSERT INTO users (user_id, reminders_enabled)
-        VALUES (?, 1)
-        ON CONFLICT(user_id) DO NOTHING
-        """,
-        (uid,)
-    )
-    cur.execute(
-        "UPDATE users SET reminders_enabled=1 WHERE user_id=?",
-        (uid,)
-    )
-    db.commit()
-    db.close()
+    set_reminders_enabled(uid, True)
 
     try:
         await callback.message.edit_text(
@@ -3338,23 +3599,7 @@ async def reminders_off(callback: CallbackQuery):
     uid = callback.from_user.id
     lang = get_user_language(uid)
     await callback.answer()
-    db = get_db()
-    cur = db.cursor()
-
-    cur.execute(
-        """
-        INSERT INTO users (user_id, reminders_enabled)
-        VALUES (?, 0)
-        ON CONFLICT(user_id) DO NOTHING
-        """,
-        (uid,)
-    )
-    cur.execute(
-        "UPDATE users SET reminders_enabled=0 WHERE user_id=?",
-        (uid,)
-    )
-    db.commit()
-    db.close()
+    set_reminders_enabled(uid, False)
 
     try:
         await callback.message.edit_text(
