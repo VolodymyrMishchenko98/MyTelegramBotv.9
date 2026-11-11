@@ -3,14 +3,14 @@ from __future__ import annotations
 
 TEXTS = {
     "welcome": {
-        "uk": ("💪 <b>SportBot — твій особистий щоденник тренувань у Telegram.</b>\n\n"
-                "Записуй заняття, переглядай статистику та історію, отримуй XP, монети й досягнення.\n\n"
-                "<b>Почни з першого тренування:</b> натисни кнопку нижче та введи вправи через кому.\n\n"
-                "Наступні кроки: переглянь статистику, історію або відкрий коротку інструкцію."),
-        "en": ("💪 <b>SportBot is your personal workout journal in Telegram.</b>\n\n"
-                "Record sessions, review your stats and history, and earn XP, coins, and achievements.\n\n"
-                "<b>Start with your first workout:</b> tap the button below and enter exercises separated by commas.\n\n"
-                "Next: check your stats, history, or open the short guide."),
+        "uk": ("💪 <b>SportBot — твій щоденник тренувань у Telegram.</b>\n\n"
+                "<b>Почни з тренування:</b> натисни кнопку нижче та введи вправи через кому, "
+                "наприклад: Біг 30 хвилин, Відтискування 4x20.\n\n"
+                "Після збереження побачиш підтвердження та лише фактично нараховані нагороди."),
+        "en": ("💪 <b>SportBot is your workout journal in Telegram.</b>\n\n"
+                "<b>Start with a workout:</b> tap the button below and enter exercises separated by commas, "
+                "for example: Running 30 min, Push-ups 4x20.\n\n"
+                "After saving, you'll see a confirmation and only the rewards actually granted."),
     },
     "help": {
         "uk": ("<b>Команди SportBot</b>\n/help — цей список команд\n\n"

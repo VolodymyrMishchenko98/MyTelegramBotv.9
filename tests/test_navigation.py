@@ -52,7 +52,7 @@ class NavigationTests(unittest.IsolatedAsyncioTestCase):
         callback.answer.assert_awaited_once_with()
         callback.message.answer.assert_not_awaited()
         args, kwargs = callback.message.edit_text.await_args
-        self.assertIn("personal workout journal", args[0])
+        self.assertIn("workout journal", args[0])
         self.assertEqual(kwargs["reply_markup"], bot_legacy.welcome_keyboard("en"))
 
     async def test_help_navigation_edits_current_message(self):

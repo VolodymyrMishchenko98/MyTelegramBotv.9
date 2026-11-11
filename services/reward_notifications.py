@@ -63,6 +63,9 @@ def build_reward_summary(
             str(desc or ""),
         ])
         if reward_parts:
-            lines.append(_pick(lang, "Нагорода: ", "Reward: ") + " / ".join(reward_parts))
+            lines.append(
+                _pick(lang, "Включено в підсумок: ", "Included in totals: ")
+                + " / ".join(reward_parts)
+            )
 
     return "\n".join(line for line in lines if line)

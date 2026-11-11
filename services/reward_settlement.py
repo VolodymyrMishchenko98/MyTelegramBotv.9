@@ -157,6 +157,7 @@ def settle_action_rewards(
             "late_workouts": late,
         }
         new_achievements = []
+        achievement_xp_awarded = 0
         for key, achievement in ACHIEVEMENTS.items():
             if key in already_awarded or not achievement["check"](stats):
                 continue
@@ -172,6 +173,7 @@ def settle_action_rewards(
                 total_coins += achievement_coins
             if achievement_xp:
                 new_xp += achievement_xp
+                achievement_xp_awarded += achievement_xp
                 new_level = get_level_from_xp(new_xp)
                 cur.execute("UPDATE users SET xp=?, level=? WHERE user_id=?", (new_xp, new_level, user_id))
             new_achievements.append({**achievement, "key": key, "coins": achievement_coins, "xp": achievement_xp})
@@ -182,7 +184,7 @@ def settle_action_rewards(
         return {
             "user_id": user_id,
             "xp": new_xp,
-            "xp_awarded": total_xp,
+            "xp_awarded": total_xp + achievement_xp_awarded,
             "level": new_level,
             "leveled_up": new_level > int(old_level),
             "streak_days": streak_days,

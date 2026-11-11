@@ -58,11 +58,15 @@ class GamificationTests(unittest.TestCase):
         self.assertIn("Тренування збережено", text)
         self.assertIn("XP: +25", text)
         self.assertIn("НОВЕ ДОСЯГНЕННЯ", text)
+        self.assertIn("Включено в підсумок", text)
         self.assertNotIn("+999", text)
 
         english = build_reward_summary("en", action_uk="Збережено", action_en="Saved", xp=1)
         self.assertIn("Saved", english)
         self.assertNotIn("Coins", english)
+        empty = build_reward_summary("en", action_uk="Збережено", action_en="Saved", level=1)
+        self.assertNotIn("XP:", empty)
+        self.assertNotIn("Coins:", empty)
 
     def test_same_day_streak_milestone_is_not_paid_twice(self):
         updates = [
@@ -159,6 +163,40 @@ class GamificationTests(unittest.TestCase):
             self.assertGreater(first["xp_awarded"], 0)
             self.assertEqual(second["xp_awarded"], 0)
             self.assertTrue(second["already_settled"])
+        finally:
+            directory.cleanup()
+
+    def test_settlement_reports_achievement_xp_and_coins_in_reward_totals(self):
+        directory, path = self._reward_db()
+        try:
+            connection = sqlite3.connect(path)
+            connection.execute(
+                "INSERT INTO workouts (user_id, text, date) VALUES (7, 'Run', '2026-11-06')"
+            )
+            connection.commit()
+            connection.close()
+
+            with patch.object(reward_settlement, "get_db", lambda: sqlite3.connect(path)):
+                result = reward_settlement.settle_action_rewards(
+                    7, "2026-11-06", 10, 5, "workout", action_key="manual:first"
+                )
+
+            first_workout = next(
+                achievement for achievement in result["achievements"]
+                if achievement["key"] == "first_workout"
+            )
+            self.assertEqual(result["xp_awarded"], 10 + first_workout["xp"])
+            self.assertEqual(result["coins_awarded"], 5 + first_workout["coins"])
+            summary = build_reward_summary(
+                "en",
+                action_uk="Тренування збережено",
+                action_en="Workout saved",
+                xp=result["xp_awarded"],
+                coins=result["coins_awarded"],
+                achievements=result["achievements"],
+            )
+            self.assertIn(f"XP: +{10 + first_workout['xp']}", summary)
+            self.assertIn("Included in totals", summary)
         finally:
             directory.cleanup()
 

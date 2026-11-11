@@ -3511,8 +3511,12 @@ async def _save_workout_with_note(
     today = datetime.now().strftime("%Y-%m-%d")
     verify_db = get_db()
     verify_cur = verify_db.cursor()
-    verify_cur.execute("SELECT 1 FROM workout_sessions WHERE user_id=? LIMIT 1", (uid,))
-    is_first_workout = verify_cur.fetchone() is None
+    verify_cur.execute(
+        "SELECT EXISTS(SELECT 1 FROM workout_sessions WHERE user_id=?) "
+        "OR EXISTS(SELECT 1 FROM workouts WHERE user_id=?)",
+        (uid, uid),
+    )
+    is_first_workout = not bool(verify_cur.fetchone()[0])
     verify_db.close()
     session_id = save_workout_session(uid, exercises, note, today)
     verify_db = get_db(); verify_cur = verify_db.cursor()
@@ -3542,21 +3546,22 @@ async def _save_workout_with_note(
         sync_info=sync_inf,
         achievements=achievements,
     )
-    await message.answer(
-        notification
-        + (t_pair(lang, f"\nНотатка: {note}", f"\nNote: {note}") if note else ""),
-        reply_markup=add_home_button(None, lang),
-    )
     if is_first_workout:
-        first_save_text = t_pair(
+        notification += "\n\n" + t_pair(
             lang,
-            "🎉 Перше тренування збережено! Воно вже в історії. Переглянь статистику, щоб побачити свій прогрес.",
-            "🎉 Your first workout is saved! It is now in your history. Open stats to see your progress.",
+            "🎉 Це твоє перше тренування! Відкрий статистику, щоб побачити прогрес.",
+            "🎉 That's your first workout! Open stats to see your progress.",
         )
-        try:
-            await message.answer(first_save_text, reply_markup=first_workout_keyboard(lang))
-        except TypeError:  # lightweight message doubles used by integrations/tests
-            await message.answer(first_save_text)
+    if note:
+        notification += t_pair(lang, f"\nНотатка: {note}", f"\nNote: {note}")
+    await message.answer(
+        notification,
+        reply_markup=(
+            first_workout_keyboard(lang)
+            if is_first_workout
+            else add_home_button(None, lang)
+        ),
+    )
     clear_user_state(uid)
 
 
