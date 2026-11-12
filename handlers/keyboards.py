@@ -128,6 +128,7 @@ def economy_home_keyboard(lang: str) -> InlineKeyboardMarkup:
 
 def activities_home_keyboard(lang: str) -> InlineKeyboardMarkup:
     return add_home_button(InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=t("activities_today_button", lang), callback_data="activities_today")],
         [InlineKeyboardButton(text=t("activities_daily_button", lang), callback_data="activities_daily")],
         [InlineKeyboardButton(text=t("activities_challenge_button", lang), callback_data="activities_challenge")],
     ]), lang)

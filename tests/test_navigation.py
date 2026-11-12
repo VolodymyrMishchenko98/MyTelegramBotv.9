@@ -63,7 +63,7 @@ class NavigationTests(unittest.IsolatedAsyncioTestCase):
         callback.answer.assert_awaited_once_with()
         callback.message.answer.assert_not_awaited()
         text, kwargs = callback.message.edit_text.await_args.args[0], callback.message.edit_text.await_args.kwargs
-        self.assertIn("Команди SportBot", text)
+        self.assertIn("Основні команди", text)
         self.assertIn("welcome_menu", {
             button.callback_data
             for row in kwargs["reply_markup"].inline_keyboard

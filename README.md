@@ -92,83 +92,69 @@ MyTelegramBot/
 
 ## 🎮 Команди / Commands
 
-Мова бота перемикається командою `/change_language`. Українська та англійська — єдині доступні мови інтерфейсу.
+Telegram command menu містить лише основні команди. Додаткові slash-команди залишаються сумісними; також їхні функції доступні через кнопки головного меню. Мову можна змінити в **Налаштуваннях → Мова**.
 
-Use `/change_language` to switch the bot between Ukrainian and English; these are the only supported interface languages.
+The Telegram command menu contains only the core commands. Additional slash commands remain supported, and their features are also available from the main-menu buttons. Change the interface language in **Settings → Language**.
 
 ### Українська
 
-| Команда | Призначення |
+| Команда меню | Призначення |
 | --- | --- |
-| `/start` | Почати роботу й відкрити меню |
-| `/help` | Переглянути список команд і довідку |
-| `/developer` | Переглянути картку й зв’язатися з розробником |
-| `/change_language` | Перемкнути українську й англійську |
+| `/start` | Відкрити головне меню |
+| `/help` | Довідка та навігація ботом |
 | `/workout` | Записати тренування |
-| `/program` | Створити, переглянути або архівувати програму тренувань |
 | `/today` | Переглянути активність за сьогодні |
-| `/history` | Переглянути історію тренувань |
-| `/stats` | Переглянути прогрес, графіки, рівень, досягнення й історію |
-| `/weight` | Додати вагу, переглянути записи або графік |
-| `/weight_stats` | Переглянути останні записи ваги |
-| `/level` | Переглянути рівень і XP |
-| `/chart` | Переглянути графіки прогресу |
-| `/profile` | Переглянути профіль |
-| `/edit_profile` | Змінити профіль |
-| `/profile_visibility` | Налаштувати видимість полів профілю |
-| `/set_goal` | Задати або змінити тижневу ціль |
-| `/goal` | Переглянути тижневу ціль і прогрес |
-| `/suggest` | Запропонувати тренування; потрібна мета в профілі |
-| `/daily` | Переглянути щоденне завдання |
-| `/challenge` | Переглянути челендж дня |
-| `/reminders` | Налаштувати нагадування |
-| `/motivate` | Отримати мотиваційне повідомлення |
-| `/tip` | Отримати пораду дня |
-| `/wallet` | Переглянути монети й інвентар |
-| `/shop` | Відкрити магазин предметів |
-| `/use` | Використати предмет з інвентарю |
-| `/export` | Завантажити копію даних |
-| `/import` | Імпортувати JSON; поточні дані буде замінено |
-| `/reset` | Видалити дані профілю після підтвердження |
-| `/admin` | Статистика бота; лише для ID з `ADMIN_IDS` |
-| `/backup` | Створити резервну копію; лише для ID з `ADMIN_IDS` |
+| `/stats` | Статистика та прогрес |
+| `/history` | Історія тренувань |
+| `/program` | Створити або переглянути програму тренувань |
 
 ### English
 
-| Command | Purpose |
+| Menu command | Purpose |
 | --- | --- |
-| `/start` | Start using the bot and open the menu |
-| `/help` | View the command list and quick guide |
-| `/developer` | View developer details and get in touch |
-| `/change_language` | Switch between Ukrainian and English |
+| `/start` | Open the main menu |
+| `/help` | Help and bot navigation |
 | `/workout` | Record a workout |
-| `/program` | Create, view, or archive a training plan |
 | `/today` | View today's activity |
-| `/history` | View workout history |
-| `/stats` | View progress, charts, level, achievements, and history |
-| `/weight` | Add weight, view entries, or open the chart |
-| `/weight_stats` | View recent weight entries |
-| `/level` | View your level and XP |
-| `/chart` | View progress charts |
-| `/profile` | View your profile |
-| `/edit_profile` | Edit your profile |
-| `/profile_visibility` | Manage visible profile fields |
-| `/set_goal` | Set or change your weekly goal |
-| `/goal` | View your weekly goal and progress |
-| `/suggest` | Suggest a workout; requires a profile goal |
-| `/daily` | View the daily task |
-| `/challenge` | View the daily challenge |
+| `/stats` | Stats and progress |
+| `/history` | Workout history |
+| `/program` | Create or view a training plan |
+
+### Додаткові команди та можливості
+
+| Команди | Можливість |
+| --- | --- |
+| `/weight`, `/weight_stats` | Додати вагу, переглянути записи та графік |
+| `/level`, `/chart` | Рівень, XP і графіки прогресу |
+| `/profile`, `/edit_profile`, `/profile_visibility` | Перегляд і налаштування профілю |
+| `/goal`, `/set_goal` | Перегляд і зміна тижневої цілі |
+| `/daily`, `/challenge` | Щоденне завдання та окремі челенджі |
+| `/suggest`, `/motivate`, `/tip` | Запропоновані тренування, мотивація й поради |
+| `/shop`, `/wallet`, `/use` | Магазин, монети, інвентар і використання предметів |
+| `/reminders` | Керування нагадуваннями |
+| `/export`, `/import`, `/reset` | Експорт, імпорт і скидання даних; небезпечні дії потребують підтвердження |
+| `/change_language` | Перемкнути українську й англійську |
+| `/developer` | Зв’язатися з розробником |
+
+Команди `/admin` і `/backup` доступні лише ID з `ADMIN_IDS`.
+
+### Additional commands and features
+
+| Commands | Feature |
+| --- | --- |
+| `/weight`, `/weight_stats` | Add weight entries, review them, and open the chart |
+| `/level`, `/chart` | Level, XP, and progress charts |
+| `/profile`, `/edit_profile`, `/profile_visibility` | View and manage your profile |
+| `/goal`, `/set_goal` | View and change the weekly goal |
+| `/daily`, `/challenge` | Daily task and separate challenges |
+| `/suggest`, `/motivate`, `/tip` | Suggested workouts, motivation, and tips |
+| `/shop`, `/wallet`, `/use` | Shop, coins, inventory, and item use |
 | `/reminders` | Manage reminders |
-| `/motivate` | Get a motivational message |
-| `/tip` | Get the tip of the day |
-| `/wallet` | View coins and inventory |
-| `/shop` | Open the item shop |
-| `/use` | Use an inventory item |
-| `/export` | Download a copy of your data |
-| `/import` | Import JSON; replaces current data |
-| `/reset` | Delete profile data after confirmation |
-| `/admin` | Bot statistics; only for IDs in `ADMIN_IDS` |
-| `/backup` | Create a database backup; only for IDs in `ADMIN_IDS` |
+| `/export`, `/import`, `/reset` | Export, import, and reset data; destructive actions require confirmation |
+| `/change_language` | Switch between Ukrainian and English |
+| `/developer` | Contact the developer |
+
+`/admin` and `/backup` are available only to IDs in `ADMIN_IDS`.
 
 ## 🗄️ База данных
 

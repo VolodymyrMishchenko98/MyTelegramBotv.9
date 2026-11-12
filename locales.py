@@ -108,6 +108,10 @@ TEXTS = {
         "uk": "🎯 Відкрити щоденне завдання",
         "en": "🎯 Open daily task",
     },
+    "activities_today_button": {
+        "uk": "📅 Активність за сьогодні",
+        "en": "📅 Today's activity",
+    },
     "activities_challenge_button": {
         "uk": "🔥 Челенджі",
         "en": "🔥 Challenges",
@@ -309,24 +313,42 @@ TEXTS = {
         "en": "Canceled.",
     },
     "help": {
-        "uk": ("<b>Команди SportBot</b>\n/help — цей список команд\n\n"
-               "<b>Тренування</b>\n/workout — записати тренування\n/program — створити або переглянути програму\n/today — активність за сьогодні\n/history — історія тренувань\n\n"
-               "<b>Статистика та прогрес</b>\n/stats — прогрес, графіки, рівень, досягнення й історія\n/weight — додати вагу, переглянути записи або графік\n/weight_stats — останні записи ваги\n/level — рівень і XP\n/chart — графіки прогресу\n\n"
-               "<b>Профіль і цілі</b>\n/profile — переглянути профіль\n/edit_profile — змінити профіль\n/profile_visibility — налаштувати видимість полів\n/set_goal — задати або змінити тижневу ціль\n/goal — переглянути тижневу ціль і прогрес\n/suggest — запропонувати тренування (потрібна мета в профілі)\n\n"
-               "<b>Завдання та нагороди</b>\n/daily — щоденне завдання\n/challenge — челендж дня\n/reminders — налаштувати нагадування\n/motivate — мотивація\n/tip — порада дня\n/wallet — монети та інвентар\n/shop — магазин\n/use — використати предмет з інвентарю\n\n"
-               "<b>Дані та налаштування</b>\n/export — завантажити копію даних\n/import — імпортувати JSON (замінює поточні дані)\n/reset — видалити дані профілю після підтвердження\n/change_language — перемкнути українську й англійську\n\n"
-               "/developer — зв’язатися з розробником\n\n"
-               "<b>Лише для адміністраторів з ADMIN_IDS</b>\n/admin — статистика бота\n/backup — створити резервну копію\n\n"
-               "Введи /start, щоб відкрити головне меню."),
-        "en": ("<b>SportBot commands</b>\n/help — this command list\n\n"
-               "<b>Workouts</b>\n/workout — record a workout\n/program — create or view a training plan\n/today — today's activity\n/history — workout history\n\n"
-               "<b>Stats and progress</b>\n/stats — progress, charts, level, achievements, and history\n/weight — add weight, view entries, or open the chart\n/weight_stats — recent weight entries\n/level — level and XP\n/chart — progress charts\n\n"
-               "<b>Profile and goals</b>\n/profile — view your profile\n/edit_profile — edit your profile\n/profile_visibility — manage visible profile fields\n/set_goal — set or change your weekly goal\n/goal — view your weekly goal and progress\n/suggest — suggest a workout (requires a profile goal)\n\n"
-               "<b>Tasks and rewards</b>\n/daily — daily task\n/challenge — daily challenge\n/reminders — manage reminders\n/motivate — motivation\n/tip — tip of the day\n/wallet — coins and inventory\n/shop — shop\n/use — use an inventory item\n\n"
-               "<b>Data and settings</b>\n/export — download a copy of your data\n/import — import JSON (replaces current data)\n/reset — delete profile data after confirmation\n/change_language — switch between Ukrainian and English\n\n"
-               "/developer — contact the developer\n\n"
-               "<b>Admins configured in ADMIN_IDS only</b>\n/admin — bot statistics\n/backup — create a database backup\n\n"
-               "Send /start to open the main menu."),
+        "uk": ("<b>Основні команди</b>\n"
+               "/start — відкрити головне меню\n/help — ця довідка\n/workout — записати тренування\n"
+               "/today — активність за сьогодні\n/stats — статистика й прогрес\n/history — історія тренувань\n"
+               "/program — тренувальні програми\n\n"
+               "<b>Розділи головного меню</b>\n"
+               "Статистика: графіки, рівень і XP, досягнення, активність, вага та тижнева ціль.\n"
+               "Налаштування: профіль, редагування, видимість, мова, нагадування й керування даними.\n"
+               "Магазин та інвентар: баланс, покупки й використання предметів.\n"
+               "Активності: щоденні завдання та окремі челенджі.\n"
+               "Натхнення: запропоновані тренування, мотивація та поради.\n"
+               "Зв’язок з розробником доступний із головного меню.\n\n"
+               "<b>Додаткові можливості</b>\n"
+               "Зберігай і переглядай вагу, змінюй цілі профілю й тижня, налаштовуй нагадування. "
+               "Дані можна експортувати, імпортувати після підтвердження або скинути після підтвердження. "
+               "Старі команди цих функцій продовжують працювати; вибір мови та зворотний зв’язок доступні в меню.\n\n"
+               "Відкрий /start, щоб перейти до розділів."),
+        "en": ("<b>Main commands</b>\n"
+               "/start — open the main menu\n/help — this guide\n/workout — record a workout\n"
+               "/today — today's activity\n/stats — stats and progress\n/history — workout history\n"
+               "/program — training plans\n\n"
+               "<b>Main menu sections</b>\n"
+               "Stats: charts, level and XP, achievements, activity, weight, and weekly goal.\n"
+               "Settings: profile, editing, visibility, language, reminders, and data management.\n"
+               "Shop and inventory: balance, purchases, and item use.\n"
+               "Activities: daily tasks and separate challenges.\n"
+               "Inspiration: suggested workouts, motivation, and tips.\n"
+               "Contact the developer from the main menu.\n\n"
+               "<b>More features</b>\n"
+               "Track and review weight, update profile and weekly goals, and manage reminders. "
+               "You can export data, import it after confirmation, or reset it after confirmation. "
+               "Legacy commands for these features still work; language selection and feedback are in the menu.\n\n"
+               "Send /start to open the sections."),
+    },
+    "help_admin": {
+        "uk": "\n\n<b>Адміністраторські команди</b>\n/admin — статистика бота\n/backup — резервна копія бази даних",
+        "en": "\n\n<b>Admin commands</b>\n/admin — bot statistics\n/backup — database backup",
     },
     "program_create": {
         "uk": "📝 Створити програму",

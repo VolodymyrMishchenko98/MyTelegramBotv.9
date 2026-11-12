@@ -73,6 +73,15 @@ class EngagementNavigationTests(unittest.IsolatedAsyncioTestCase):
                     _callbacks(keyboards.sections_keyboard(lang)),
                     {"economy_home", "activities_home", "inspiration_home", "welcome_menu"},
                 )
+                self.assertEqual(
+                    _callbacks(keyboards.activities_home_keyboard(lang)),
+                    {
+                        "activities_today",
+                        "activities_daily",
+                        "activities_challenge",
+                        "welcome_menu",
+                    },
+                )
                 self.assertIn("welcome_sections", _callbacks(bot_legacy.welcome_keyboard(lang)))
                 for key, entry in TEXTS.items():
                     if key.startswith(("sections_", "economy_", "activities_", "inspiration_")):
@@ -142,12 +151,15 @@ class EngagementNavigationTests(unittest.IsolatedAsyncioTestCase):
             (bot_legacy.economy_inventory, "show_wallet"),
             (bot_legacy.economy_use, "show_inventory"),
             (bot_legacy.activities_home, "show_activities_home"),
+            (bot_legacy.activities_today, "show_today_activity"),
             (bot_legacy.activities_daily, "show_daily_task"),
             (bot_legacy.activities_challenge, "show_challenge"),
             (bot_legacy.inspiration_home, "show_inspiration_home"),
             (bot_legacy.inspiration_suggest, "show_suggest"),
             (bot_legacy.inspiration_motivate, "show_motivation"),
             (bot_legacy.inspiration_tip, "show_tip"),
+            (bot_legacy.stats_weight, "show_weight_menu"),
+            (bot_legacy.stats_weekly_goal, "show_weekly_goal"),
         )
         for route, renderer_name in routes:
             callback = _callback(user_id=953)

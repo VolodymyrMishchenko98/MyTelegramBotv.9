@@ -84,6 +84,16 @@ def _dashboard_keyboard(lang: str) -> InlineKeyboardMarkup:
                 callback_data="stats_level",
             ),
         ],
+        [
+            InlineKeyboardButton(
+                text=_pair(lang, "⚖️ Вага", "⚖️ Weight"),
+                callback_data="stats_weight",
+            ),
+            InlineKeyboardButton(
+                text=_pair(lang, "🎯 Тижнева ціль", "🎯 Weekly goal"),
+                callback_data="stats_weekly_goal",
+            ),
+        ],
     ]), lang)
 
 

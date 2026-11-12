@@ -35,6 +35,8 @@ class ProgressNavigationTests(unittest.IsolatedAsyncioTestCase):
                     "stats_level",
                     "stats_records",
                     "stats_history",
+                    "stats_weight",
+                    "stats_weekly_goal",
                     "welcome_menu",
                 }.issubset(actions))
 
@@ -46,6 +48,8 @@ class ProgressNavigationTests(unittest.IsolatedAsyncioTestCase):
             "stats_level",
             "stats_records",
             "stats_history",
+            "stats_weight",
+            "stats_weekly_goal",
             "welcome_menu",
         }.issubset(actions))
 
@@ -58,7 +62,7 @@ class ProgressNavigationTests(unittest.IsolatedAsyncioTestCase):
         send_level.assert_awaited_once_with(callback.message, 41, edit=True)
 
     def test_weight_menu_exposes_add_recent_and_chart_actions(self):
-        expected = {"weight_add", "weight_recent", "chart_weight", "welcome_menu"}
+        expected = {"weight_add", "weight_recent", "chart_weight", "stats_home", "welcome_menu"}
         for lang in ("uk", "en"):
             with self.subTest(language=lang):
                 self.assertTrue(expected.issubset(_callback_data(bot_legacy.weight_keyboard(lang))))
@@ -74,7 +78,7 @@ class ProgressNavigationTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(
             _callback_data(message.answer.await_args.kwargs["reply_markup"]),
-            {"weight_add", "weight_recent", "chart_weight", "welcome_menu"},
+            {"weight_add", "weight_recent", "chart_weight", "stats_home", "welcome_menu"},
         )
         set_state.assert_not_called()
 
@@ -100,7 +104,7 @@ class ProgressNavigationTests(unittest.IsolatedAsyncioTestCase):
         for lang in ("uk", "en"):
             with self.subTest(language=lang):
                 actions = _callback_data(bot_legacy.weekly_goal_keyboard(lang))
-                self.assertEqual(actions, {"weekly_goal_set", "welcome_menu"})
+                self.assertEqual(actions, {"weekly_goal_set", "stats_home", "welcome_menu"})
                 self.assertNotIn("suggest", actions)
 
     async def test_weekly_goal_callback_uses_existing_goal_input_state(self):
@@ -142,7 +146,7 @@ class ProgressNavigationTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Progress: 66%", message.answer.await_args.args[0])
         self.assertEqual(
             _callback_data(message.answer.await_args.kwargs["reply_markup"]),
-            {"weekly_goal_set", "welcome_menu"},
+            {"weekly_goal_set", "stats_home", "welcome_menu"},
         )
         self.assertIn("SELECT weekly_goal", cursor.execute.call_args_list[0].args[0])
 
@@ -161,7 +165,7 @@ class ProgressNavigationTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(
             _callback_data(message.answer.await_args.kwargs["reply_markup"]),
-            {"weekly_goal_set", "welcome_menu"},
+            {"weekly_goal_set", "stats_home", "welcome_menu"},
         )
 
 

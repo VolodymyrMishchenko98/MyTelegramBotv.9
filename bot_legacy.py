@@ -621,78 +621,40 @@ def style_block(title: str, body: str, icon: str = "✨") -> str:
     )
 
 
-def build_start_text(lang: str) -> str:
-    return t("help", lang)
+def build_start_text(lang: str, user_id: int | None = None) -> str:
+    return build_help_text(lang, user_id)
+
+
+def build_help_text(lang: str, user_id: int | None = None) -> str:
+    text = t("help", lang)
+    if user_id is None:
+        return text
+
+    from handlers.admin import is_admin
+
+    if is_admin(user_id):
+        text += t("help_admin", lang)
+    return text
 
 
 BOT_COMMAND_DESCRIPTIONS = {
     "uk": {
-        "start": "Почати роботу",
-        "help": "Список команд і коротка довідка",
-        "developer": "Зв’язатися з розробником",
-        "program": "Створити або переглянути програму тренувань",
-        "change_language": "Перемкнути українську й англійську",
-        "profile": "Переглянути профіль",
-        "edit_profile": "Змінити профіль",
-        "profile_visibility": "Налаштувати видимість полів профілю",
-        "set_goal": "Задати або змінити тижневу ціль",
-        "goal": "Переглянути ціль і прогрес за тиждень",
-        "daily": "Щоденне завдання",
-        "wallet": "Монети та інвентар",
-        "shop": "Магазин предметів",
-        "reminders": "Налаштувати нагадування",
-        "suggest": "Запропонувати тренування",
-        "motivate": "Мотивація",
-        "tip": "Порада дня",
-        "challenge": "Челендж дня",
-        "weight": "Вага: додати запис, переглянути записи або графік",
-        "weight_stats": "Останні записи ваги",
-        "today": "Активність за сьогодні",
-        "history": "Історія тренувань",
-        "level": "Рівень і XP",
-        "chart": "Графіки прогресу",
+        "start": "Відкрити головне меню",
+        "help": "Довідка та навігація ботом",
         "workout": "Записати тренування",
-        "stats": "Прогрес, графіки, рівень, досягнення й історія",
-        "admin": "Статистика бота (лише адмін)",
-        "backup": "Резервна копія (лише адмін)",
-        "reset": "Видалити дані профілю",
-        "export": "Завантажити копію даних",
-        "import": "Імпортувати дані з JSON",
-        "use": "Використати предмет з інвентарю",
+        "today": "Переглянути активність за сьогодні",
+        "stats": "Статистика та прогрес",
+        "history": "Історія тренувань",
+        "program": "Створити або переглянути програму",
     },
     "en": {
-        "start": "Start using the bot",
-        "help": "Command list and quick guide",
-        "developer": "Contact the developer",
-        "program": "Create or view a training plan",
-        "change_language": "Switch Ukrainian and English",
-        "profile": "View your profile",
-        "edit_profile": "Edit your profile",
-        "profile_visibility": "Manage visible profile fields",
-        "set_goal": "Set or change your weekly goal",
-        "goal": "View your weekly goal and progress",
-        "daily": "Daily task",
-        "wallet": "Coins and inventory",
-        "shop": "Item shop",
-        "reminders": "Manage reminders",
-        "suggest": "Suggest a workout",
-        "motivate": "Motivation",
-        "tip": "Tip of the day",
-        "challenge": "Daily challenge",
-        "weight": "Weight: add an entry, view entries, or open chart",
-        "weight_stats": "Recent weight entries",
-        "today": "Today's activity",
-        "history": "Workout history",
-        "level": "Level and XP",
-        "chart": "Progress charts",
+        "start": "Open the main menu",
+        "help": "Help and bot navigation",
         "workout": "Record a workout",
-        "stats": "Progress, charts, level, achievements, and history",
-        "admin": "Bot statistics (admins only)",
-        "backup": "Database backup (admins only)",
-        "reset": "Delete profile data",
-        "export": "Download a copy of your data",
-        "import": "Import data from JSON",
-        "use": "Use an inventory item",
+        "today": "View today's activity",
+        "stats": "Stats and progress",
+        "history": "Workout history",
+        "program": "Create or view a training plan",
     },
 }
 
@@ -2782,8 +2744,13 @@ async def start(message: Message):
 
 @dp.message(Command("help"))
 async def help_command(message: Message):
-    lang = get_user_language(message.from_user.id)
-    await message.answer(t("help", lang), parse_mode="HTML", reply_markup=help_keyboard(lang))
+    user_id = message.from_user.id
+    lang = get_user_language(user_id)
+    await message.answer(
+        build_help_text(lang, user_id),
+        parse_mode="HTML",
+        reply_markup=help_keyboard(lang),
+    )
 
 
 @dp.callback_query(F.data == "welcome_workout")
@@ -2835,8 +2802,13 @@ async def welcome_history(callback: CallbackQuery):
 @dp.callback_query(F.data == "welcome_help")
 async def welcome_help(callback: CallbackQuery):
     await callback.answer()
-    lang = get_user_language(callback.from_user.id)
-    await callback.message.edit_text(t("help", lang), parse_mode="HTML", reply_markup=help_keyboard(lang))
+    user_id = callback.from_user.id
+    lang = get_user_language(user_id)
+    await callback.message.edit_text(
+        build_help_text(lang, user_id),
+        parse_mode="HTML",
+        reply_markup=help_keyboard(lang),
+    )
 
 
 @dp.callback_query(F.data == "welcome_menu")
@@ -2891,7 +2863,7 @@ async def set_language(callback: CallbackQuery):
     set_user_language(callback.from_user.id, lang)
     await callback.answer(t_pair(lang, "Збережено", "Saved"))
     await callback.message.edit_text(
-        build_start_text(lang),
+        build_start_text(lang, callback.from_user.id),
         parse_mode="HTML",
         reply_markup=welcome_keyboard(lang),
     )
@@ -3099,7 +3071,10 @@ async def set_goal(message: Message):
 
 @dp.message(Command("goal"))
 async def goal(message: Message):
-    uid = message.from_user.id
+    await show_weekly_goal(message, message.from_user.id)
+
+
+async def show_weekly_goal(message: Message, uid: int, *, edit: bool = False) -> None:
     lang = get_user_language(uid)
     db = get_db()
     cur = db.cursor()
@@ -3112,7 +3087,8 @@ async def goal(message: Message):
 
     if not row or not row[0] or row[0] < 1:
         db.close()
-        await message.answer(
+        display = message.edit_text if edit else message.answer
+        await display(
             t_pair(lang, "Мета не задана. Використовуй /set_goal", "Goal is not set. Use /set_goal"),
             reply_markup=weekly_goal_keyboard(lang),
         )
@@ -3136,7 +3112,8 @@ async def goal(message: Message):
 
     status = t_pair(lang, "🔥 Чудово", "🔥 Great") if done >= weekly_goal else t_pair(lang, "⏳ Продовжуй", "⏳ Keep going")
 
-    await message.answer(
+    display = message.edit_text if edit else message.answer
+    await display(
         style_block(
             t_pair(lang, "Мета на тиждень", "Weekly goal"),
             t_pair(
@@ -3152,12 +3129,16 @@ async def goal(message: Message):
 
 
 def weekly_goal_keyboard(lang: str) -> InlineKeyboardMarkup:
-    return add_home_button(InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(
+    return add_home_button(InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
             text=t_pair(lang, "✏️ Змінити ціль", "✏️ Change goal"),
             callback_data="weekly_goal_set",
-        )
-    ]]), lang)
+        )],
+        [InlineKeyboardButton(
+            text=t_pair(lang, "⬅️ До статистики", "⬅️ Back to stats"),
+            callback_data="stats_home",
+        )],
+    ]), lang)
 
 
 async def prompt_weekly_goal(message: Message, user_id: int, lang: str, *, edit: bool = False) -> None:
@@ -3174,6 +3155,12 @@ async def weekly_goal_set(callback: CallbackQuery) -> None:
     lang = get_user_language(callback.from_user.id)
     await callback.answer()
     await prompt_weekly_goal(callback.message, callback.from_user.id, lang, edit=True)
+
+
+@dp.callback_query(F.data == "stats_weekly_goal")
+async def stats_weekly_goal(callback: CallbackQuery) -> None:
+    await callback.answer()
+    await show_weekly_goal(callback.message, callback.from_user.id, edit=True)
 
 
 async def show_daily_task(message: Message, user_id: int, *, edit: bool = False) -> None:
@@ -3237,6 +3224,12 @@ async def activities_home(callback: CallbackQuery) -> None:
 async def activities_daily(callback: CallbackQuery) -> None:
     await callback.answer()
     await show_daily_task(callback.message, callback.from_user.id, edit=True)
+
+
+@dp.callback_query(F.data == "activities_today")
+async def activities_today(callback: CallbackQuery) -> None:
+    await callback.answer()
+    await show_today_activity(callback.message, callback.from_user.id, edit=True)
 
 
 @dp.callback_query(F.data == "activities_challenge")
@@ -4123,8 +4116,13 @@ async def workout_note_skip(callback: CallbackQuery):
 
 @dp.message(Command("weight"))
 async def weight(message: Message):
-    lang = get_user_language(message.from_user.id)
-    await message.answer(
+    await show_weight_menu(message, message.from_user.id)
+
+
+async def show_weight_menu(message: Message, user_id: int, *, edit: bool = False) -> None:
+    lang = get_user_language(user_id)
+    display = message.edit_text if edit else message.answer
+    await display(
         t_pair(lang, "⚖️ Обери дію:", "⚖️ Choose an action:"),
         reply_markup=weight_keyboard(lang),
     )
@@ -4143,6 +4141,10 @@ def weight_keyboard(lang: str) -> InlineKeyboardMarkup:
         [InlineKeyboardButton(
             text=t_pair(lang, "📈 Графік ваги", "📈 Weight chart"),
             callback_data="chart_weight",
+        )],
+        [InlineKeyboardButton(
+            text=t_pair(lang, "⬅️ До статистики", "⬅️ Back to stats"),
+            callback_data="stats_home",
         )],
     ]), lang)
 
@@ -4200,10 +4202,19 @@ async def weight_recent(callback: CallbackQuery):
     await send_weight_stats(callback.message, callback.from_user.id, edit=True)
 
 
+@dp.callback_query(F.data == "stats_weight")
+async def stats_weight(callback: CallbackQuery) -> None:
+    await callback.answer()
+    await show_weight_menu(callback.message, callback.from_user.id, edit=True)
+
+
 # ---------- TODAY ----------
 @dp.message(Command("today"))
 async def today(message: Message):
-    uid = message.from_user.id
+    await show_today_activity(message, message.from_user.id)
+
+
+async def show_today_activity(message: Message, uid: int, *, edit: bool = False) -> None:
     lang = get_user_language(uid)
     _, _, daily_task, daily_progress_value, daily_completed = get_or_create_daily_task(uid)
     db = get_db()
@@ -4242,7 +4253,8 @@ async def today(message: Message):
     if not rows:
         text += t_pair(lang, "\n\nТренувань поки немає. Запиши через /workout.", "\n\nNo workouts yet. Log one with /workout.")
 
-    await message.answer(
+    display = message.edit_text if edit else message.answer
+    await display(
         style_block(
             t_pair(lang, "Сьогоднішні тренування", "Today's workouts"),
             t_pair(lang, f"{text}\n\n🔥 Витрачено: ~{total_cal} ккал", f"{text}\n\n🔥 Burned: ~{total_cal} kcal"),
